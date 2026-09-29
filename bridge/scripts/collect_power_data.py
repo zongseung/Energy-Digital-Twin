@@ -140,8 +140,8 @@ def archive_csvs(raw):
     return result
 
 
-def reused(name, source):
-    path = ROOT / name
+def reused(name, source, *, root=None):
+    path = (ROOT if root is None else root) / name
     meta = Path(str(path) + '.metadata.json')
     if not path.exists() or not meta.exists():
         return None
@@ -151,8 +151,8 @@ def reused(name, source):
     return value
 
 
-def publish(name, raw, metadata):
-    path = ROOT / name
+def publish(name, raw, metadata, *, root=None):
+    path = (ROOT if root is None else root) / name
     path.parent.mkdir(parents=True, exist_ok=True)
     part = Path(str(path) + '.part')
     if raw is not None:

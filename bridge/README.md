@@ -173,4 +173,24 @@ python3 bridge/scripts/collect_power_data.py
 
 원본 파일을 수정하지 않고 `.part`에 저장한 뒤 원자적으로 공개한다. 완료 metadata와 SHA-256이 맞는 파일은 재사용하고, 해시가 다르면 중단한다. 같은 날짜의 기존 캐시/공개 스냅샷을 자동 갱신하는 수집기는 아니다. 거래량은 날짜·시간·연료원 중복, 시간창 누락, 비유한값과 단위 변경을 검사한다. 음수 정산값은 의미가 확인되지 않아 시뮬레이션에 바로 대입하지 않는다. ZIP 원본을 보존하면서 제주 CSV만 고정된 출력 파일명으로 꺼내므로 원본 경로를 파일시스템 경로로 사용하지 않는다.
 
-다음 확보 대상은 실제 모선/회선/변압기 연결과 R/X/B·정격·tap, bus P/Q·HVDC별 계측이다. [ASOS 시간 API](https://www.data.go.kr/data/15057210/openapi.do)의 풍속·풍향/QC와 [건축HUB API](https://www.data.go.kr/data/15134735/openapi.do)의 등록 높이는 해당 서비스 활용신청과 공공데이터포털 ServiceKey가 필요하다. 현재 `.env`에는 해당 키 항목이 없다. 현장 사진은 겹치는 여러 방향과 치수/위치 기준을 갖춘 별도 촬영 세트가 필요하다.
+다음 확보 대상은 실제 모선/회선/변압기 연결과 R/X/B·정격·tap, bus P/Q·HVDC별 계측이다. 현장 사진은 겹치는 여러 방향과 치수/위치 기준을 갖춘 별도 촬영 세트가 필요하다.
+
+### 승인된 ASOS·건축HUB API 수집
+
+`scripts/collect_registered_api.py`는 루트 `.env`의 `api_key`로 [ASOS 시간 API](https://www.data.go.kr/data/15057210/openapi.do)와 [건축HUB 표제부 API](https://www.data.go.kr/data/15134735/openapi.do)를 수집한다. 2026-09-30 두 서비스의 `resultCode=00`을 실제 확인했다. 해당 서비스별 활용신청이 필요하며 VWorld 키와는 별개다. 공백·따옴표와 URL 인코딩 키를 처리하고, 키가 포함된 요청 URL·응답 오류 본문을 출력하거나 metadata에 저장하지 않는다. HTTPS 공식 주소만 호출하고 redirect를 거부한다.
+
+```bash
+python3 -m unittest discover -s bridge/scripts -p 'test_*.py'
+python3 bridge/scripts/collect_registered_api.py --year 2025 --snapshot 20260930
+python3 bridge/scripts/collect_registered_api.py --snapshot 20260930 --check
+```
+
+저장 위치는 `/mnt/iscsi/energy-digital-twin/geography/jeju/registered_api/20260930/`다. `asos_2025_<지점번호>.jsonl` 4개는 [기상청 공식 지점 목록](https://www.kma.go.kr/jeju/html/observation/observation_info.jsp)의 제주184·고산185·성산188·서귀포189의 2025년 전체 시간 자료이며 풍속·풍향·기압 등 원문 필드와 QC를 보존한다. 시간대는 Asia/Seoul로 해석하며 0과 공란을 구분한다. [공식 QC 설명](https://data.kma.go.kr/data/grnd/selectAsosRltmList.do?pgmNo=36)은 0=정상·1=오류·9=결측이지만 실제 API의 공란 QC를 정상으로 바꾸지 않는다. 지상 풍속을 터빈 허브 풍속이나 미래 예보로 간주하지 않는다.
+
+`buildings_<법정동코드>.jsonl`은 기존 기본·북쪽 주소 건물 파일에서 확인된 186개 법정동 코드를 조회한 표제부다. [공식 건물관리번호 구성](https://eng.juso.go.kr/addrlink/qna/qnaDetail.do?bulletinRefSn=92607&noticeMgtSn=92607&noticeType=QNA)에 따라 `bd_mgt_sn` 첫 10자리를 조회 범위로 사용한다. 이 범위는 현재 제주 전체 법정동 목록의 완전성을 보증하지 않는다. 공식 명세의 `heit` 단위는 m이며 0·공란·비유한값은 높이 미확보다. 대장 PK·지번·도로명주소·층수·용도도 보존한다. **수집된 등록 높이 건수는 기존 GIS 높이 결측을 채운 건수가 아니다.** 대장 PK와 GIS ID를 자동 연결하지 않았으며 지번·주소와 실제 형상으로 대응을 검증해야 한다.
+
+최대 3개 작업을 비동기로 실행하고 ASOS는 999건, 건축HUB는 실제 응답 한도인 100건씩 받는다. 요청별 socket timeout은 30초, 응답 한도는 4MiB다. 페이지별 SHA-256·질의 identity를 검증하고 중복 ID·다른 지역/지점·페이지 누락·총건수 변경을 거부한다. 검증이 끝난 페이지와 집계만 원자 저장하며, 완료 집계는 해시 검사 후 재사용한다. 중단된 집계는 기존 페이지를 API에서 다시 대조한다. 원천이 바뀌면 오류로 종료하고 새 `--snapshot YYYYMMDD`로 별도 수집한다. 제공 API의 페이지 조회 자체는 동일 시점의 원자 스냅샷이 아니므로 그 한계는 metadata에 보존한다.
+
+`--check`는 키나 네트워크 없이 선언된 모든 작업·페이지·결과의 해시와 건수·QC를 다시 검사한다. manifest의 `complete`는 설정된 수집 범위만 뜻하며 `electrical_twin_ready=false`다. 파일과 키는 Git에 넣지 않는다. 정적 파일의 GPU 전송과 브릿지 HTTP/WS 공개는 후속 작업이다.
+
+2026-09-30 전수 검증: JSONL 190개 파일 391,938,526바이트·2,309페이지. ASOS 35,040행 중 풍속/풍향 공란은 고산 10·성산 27시간. 건축물대장 217,844행 중 양수 높이 115,226행, 높이0은 102,616행·음수 2행. 양수라도 250m 초과 4행(최대 4,970m)은 원천 검토가 필요하다. 등록 높이를 실제 형상에 적용하기 전에 주소/동과 geometry 대응을 확인한다. [품질·범위 기록](../jeju_power_grid_data_and_modeling_review.md#20-등록-키를-이용한-asos건축hub-본수집--2026-09-30).
