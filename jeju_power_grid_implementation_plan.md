@@ -10,13 +10,13 @@
 
 **Spec:** [기획서 v0.3](jeju_power_grid_digital_twin_design.md), 특히 7·10·11·16·17·18절.
 
-**Status:** 사용자가 수정한 서버별 역할을 반영한 구현 전 계획. SSH 인증·GPU 제원은 확인했으며 브릿지·제품 코드·상시 터널·추론은 아직 구현/실행하지 않았다.
+**Status:** 2026-09-29 현재 서버의 Task 0 브릿지 구현·Docker 실행·실제 DB/HTTP/WS 검증 완료. Tasks 1–7의 GPU 제품·상시 터널·추론·렌더링 연결은 후속 작업이다. [브릿지 실행·비동기 수신 방법](bridge/README.md).
 
 ## Global Constraints
 
 - 현재 작업 루트 `/home/dlwhdtmd/energy-digital-twin`에는 `bridge/` 코드·방법론·기획·데이터 감사만 둔다. 제품 원본 코드 작성·빌드·실행은 GPU 서버의 `~/energy-digital-twin`에서 수행하며 실제 home·기존 파일·Git 경계를 확인한 뒤 경로를 생성한다. 기존 원격 파일을 덮어쓰지 않는다. 각 프로젝트 경계만 stage/commit하며 `.env`는 제외한다.
 - 원천 DB에는 SELECT만 수행한다. 기존 서비스·수집기·DB schema·Redis 설정을 변경하지 않는다. iSCSI의 PostgreSQL 데이터 디렉터리를 새 DB에 마운트하지 않는다.
-- `.env`의 값은 로그·브라우저·이미지·문서에 포함하지 않는다. 현재 `higs_key`, `vworld_key`, SSH용 `password`가 존재하고 DB/Redis 연결 설정은 없다. SSH 비밀번호는 접속에만 사용하고 `.env` 전체를 원격 서버로 복사하지 않는다. 현재 브릿지에는 DB 설정만, GPU 앱에는 브릿지 주소·앱 Redis 설정만 주입한다.
+- `.env`의 값은 로그·브라우저·이미지·문서에 포함하지 않는다. 루트 `.env`에는 `higs_key`, `vworld_key`, SSH용 `password`가 있고, 브릿지 DB 연결은 별도 `bridge/.env`에 보관한다. SSH 비밀번호는 접속에만 사용하고 `.env` 전체를 원격 서버로 복사하지 않는다. 현재 브릿지에는 DB 설정만, GPU 앱에는 브릿지 주소·앱 Redis 설정만 주입한다.
 - `timeline`은 최대 7일, 정확한 시각의 `state`가 없으면 404, 유효하지 않은 입력은 422, 필수 원천 실패는 503으로 구분한다.
 - 원천 확인 주기는 60초, 원천 시각이 15분 이상 오래되면 지연으로 표시한다. 같은 시각의 값 정정도 WS로 전송한다. 시간 입력에는 UTC offset이 필요하다.
 - 캐시는 GPU 서버 앱 Redis의 `edt:dev:v1:`; GIS TTL 3600초, 최신 HTTP 30초, 특정 시각/시간 목록 300초. Redis 실패 시 브릿지로 조회한다. 브릿지에는 캐시·시뮬레이션·3D 기능을 추가하지 않는다.
@@ -68,12 +68,14 @@
 
 **Files:** 현재 서버의 `bridge/`와 방법론·연결 문서.
 
-- [ ] 감사의 표/컬럼·ts 타입/시간대·단위를 원천과 대조하고 읽기 전용 SELECT를 준비한다. 오류/로그에 DB 문자열을 포함하지 않는다.
-- [ ] offset 동치·0/NULL/NaN·시점 부재·최대 7일 제한·같은 시점 정정을 확인하는 테스트를 먼저 작성하고 최소 브릿지를 구현한다.
-- [ ] `/api/v1/health`, `/api/v1/jeju/assets`, `/timeline`, `/state`, `/ws`의 조회/전송 계약을 제공한다. Hub GIS·Demand 수급의 안정 ID·HVDC 전체 geometry·출처/품질을 보존한다. 실제 병렬 회선을 임의 병합하지 않는다.
-- [ ] 60초 원천 확인 task 하나와 초기 snapshot·정정·DB 오류 알림을 구현한다. 느린 소비자/메시지 상한/timeout을 처리하며 마지막 성공 관측 시각은 유지한다.
-- [ ] 브릿지 Compose는 기존 DB의 `src_energy-hub-net`, `pv-pipeline-network`를 external로 참조하고 호스트 `127.0.0.1:8091`에만 공개한다. 기존 서비스와 schema는 변경하지 않는다.
-- [ ] 실제 두 시점을 브릿지 응답과 DB에서 대조한다. 원천 장애·정정 테스트 때문에 운영 DB를 변경하거나 정지하지 않는다.
+- [x] 감사의 표/컬럼·ts 타입/시간대·단위를 원천과 대조하고 읽기 전용 SELECT를 준비한다. 오류/로그에 DB 문자열을 포함하지 않는다.
+- [x] offset 동치·0/NULL/NaN·시점 부재·최대 7일 제한·같은 시점 정정을 확인하는 테스트를 먼저 작성하고 최소 브릿지를 구현한다.
+- [x] `/api/v1/health`, `/api/v1/jeju/assets`, `/timeline`, `/state`, `/ws`의 조회/전송 계약을 제공한다. Hub GIS·Demand 수급의 안정 ID·HVDC 전체 geometry·출처/품질을 보존한다. 실제 병렬 회선을 임의 병합하지 않는다.
+- [x] 60초 원천 확인 task 하나와 초기 snapshot·정정·DB 오류 알림을 구현한다. 느린 소비자/메시지 상한/timeout을 처리하며 마지막 성공 관측 시각은 유지한다.
+- [x] 브릿지 Compose는 기존 DB의 `src_energy-hub-net`, `pv-pipeline-network`를 external로 참조하고 호스트 `127.0.0.1:8091`에만 공개한다. 기존 서비스와 schema는 변경하지 않는다.
+- [x] 실제 두 시점을 브릿지 응답과 DB에서 대조한다. 원천 장애·정정 테스트 때문에 운영 DB를 변경하거나 정지하지 않는다.
+
+**검증 기록 (2026-09-29):** 자동 검사 7개 통과, 별도 실제 원천 검사 1개 통과, `cargo clippy --all-targets -- -D warnings`와 release 빌드 통과. 실제 DB의 두 시점·각 5개 관측값과 KST/UTC 시각을 HTTP 응답에 대조했다. GIS 2,748개·고유 원천 ID·HVDC 전체 경로를 확인했다. Docker의 실제 health/state/timeline/assets·404/422·WS 초기 수신을 확인하고 활성 WS 상태의 SIGTERM 종료 코드 0과 재시작 후 health를 검증했다. 원천 장애·정정·재접속은 격리한 테스트 상태로 검사했고 운영 DB를 수정/정지하지 않았다. 서버 간 상시 터널·GPU 수신 검증은 Task 2/7에 남아 있다.
 
 ## Task 1: Rust product and Docker runtime on the GPU server
 
