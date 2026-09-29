@@ -148,3 +148,29 @@ flock -n /mnt/iscsi/energy-digital-twin/geography/jeju/.photos-collector.lock \
 사진별 원본 URL·출처 페이지·크기·해시·수집 시각을 보존한다. 대표 사진 3장을 육안 확인했고 36장 모두 이미지 파일 검증을 통과했다. 기존 파일은 해시 대조 후 재사용한다. 현재 참고용이며 사진별 사용 조건·촬영 시각·카메라 위치·겹치는 촬영 세트는 확인되지 않았다. 텍스처나 생성 모델 입력에 사용하기 전에 조건과 적합성을 확인한다. 사진 갤러리 표본은 제주 전체 현장 촬영이나 정밀 다중 시점 복원 세트를 대신하지 않는다.
 
 정적 지리 파일은 GPU 장면 준비 단계에서 파일 전송 후 해시를 대조한다. 이 CLI가 만든 파일은 현재 브릿지 HTTP/WS에 자동 공개되지 않는다. 실시간 관측은 기존 브릿지 HTTP/WS를 사용한다.
+
+### 추가 전력 자료 수집
+
+`scripts/collect_power_data.py`는 준비용 Python 표준 라이브러리 스크립트다. Rust 브릿지/제품 백엔드에 새 실행 의존성을 추가하지 않는다. DB와 공개 파일을 최대 3개 병렬 수집하고 자체 파일 잠금으로 중복 실행을 막는다. 저장 위치는 쓰기 가능한 기존 iSCSI 폴더의 `/mnt/iscsi/energy-digital-twin/geography/jeju/power/`다.
+
+```bash
+python3 -m unittest discover -s bridge/scripts -p 'test_*.py'
+python3 bridge/scripts/collect_power_data.py
+```
+
+첫 실행에는 공식 논문 Table A2에서 확인한 Markdown 표를 `--routes /path/to/source-table.md`로 제공한다. 수집된 `routes_2023_source_table.md`가 있으면 다음 실행부터 그 파일과 검증된 결과를 재사용한다. 별도 API 키가 없는 공개 다운로드와 로컬 `docker exec energy-hub-db psql`을 사용한다. DB는 명시적인 읽기 전용 트랜잭션으로 조회한다.
+
+2026-09-30에 아래 **9개 파일, 58,603,088바이트**의 내용·해시·metadata를 검사했다. manifest의 `complete`는 이 수집 작업들에만 적용하며 `electrical_twin_ready=false`와 필요한 미확보 항목을 함께 기록한다.
+
+| 결과 | 실제 확보 내용 | 적용 한계 |
+|---|---|---|
+| `kepco_connections_20260930.jsonl` | 제주 주소 99,860건, 변전소 코드 15개·변압기 코드 쌍 54개·배전선 코드 조합 146개 | 2026-03-23~26 수집 캐시. 좌표·R/X·계량 부하가 없으며 용량 필드의 단위는 미검증 |
+| `generation_20251231.csv` | [KPX 연료원별 거래량](https://www.data.go.kr/data/15100214/fileData.do), 2025년 전체 43,800행·5연료원·24시간 라벨, MWh | 개별 발전기 SCADA가 아닌 시장 정산 거래량. 음수 12건을 그대로 보존하고 품질 표시. 시간 라벨의 구간 기준은 별도 확인 |
+| `wind_20241231.csv` | [제주 풍력시설 목록](https://www.data.go.kr/data/15047557/fileData.do) 25건, 주소·설비용량 MW | 비식별화된 이름·주소이며 실제 터빈 좌표·높이나 운전 출력이 아님 |
+| `curtailment_20260630.zip`, 아래 `01.csv`·`02.csv` | [공식 출력제어 ZIP](https://www.data.go.kr/data/15132422/fileData.do)과 내부 제주 CSV 두 개. PV 125행(2021-10-17~2024-06-03), 풍력 336행(2021-01-13~2024-05-30) | 목록 기준일 2026-06-30과 내부 관측 기간이 다름. PV는 제어 표식, 풍력은 제어 MWh. 연속 시계열로 보간하거나 과거 버전끼리 합산하지 않음 |
+| `kpx_jeju_operations_2024.pdf` | KPX 공식 2024년 계통 운영실적, 567,999바이트 | 과거 설비·운영 대조용이며 완전한 현재 계통 case가 아님 |
+| `routes_2023_source_table.md`, `routes_2023.jsonl` | [Son & Jang (2023)](https://www.mdpi.com/1996-1073/16/15/5699) Table A2의 번호별 39회선·연결 이름·정격 MVA | 이름 반복·원문 표기를 보존. 현재 GIS와 자동 연결하지 않으며 R/X·정식 bus ID는 없음 |
+
+원본 파일을 수정하지 않고 `.part`에 저장한 뒤 원자적으로 공개한다. 완료 metadata와 SHA-256이 맞는 파일은 재사용하고, 해시가 다르면 중단한다. 같은 날짜의 기존 캐시/공개 스냅샷을 자동 갱신하는 수집기는 아니다. 거래량은 날짜·시간·연료원 중복, 시간창 누락, 비유한값과 단위 변경을 검사한다. 음수 정산값은 의미가 확인되지 않아 시뮬레이션에 바로 대입하지 않는다. ZIP 원본을 보존하면서 제주 CSV만 고정된 출력 파일명으로 꺼내므로 원본 경로를 파일시스템 경로로 사용하지 않는다.
+
+다음 확보 대상은 실제 모선/회선/변압기 연결과 R/X/B·정격·tap, bus P/Q·HVDC별 계측이다. [ASOS 시간 API](https://www.data.go.kr/data/15057210/openapi.do)의 풍속·풍향/QC와 [건축HUB API](https://www.data.go.kr/data/15134735/openapi.do)의 등록 높이는 해당 서비스 활용신청과 공공데이터포털 ServiceKey가 필요하다. 현재 `.env`에는 해당 키 항목이 없다. 현장 사진은 겹치는 여러 방향과 치수/위치 기준을 갖춘 별도 촬영 세트가 필요하다.
