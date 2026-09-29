@@ -1,25 +1,25 @@
-# 제주 전력망 디지털 트윈 구축 기획서 v0.2
+# 제주 전력망 디지털 트윈 구축 기획서 v0.3
 
-## 제주 현장 이미지 반영 Higgsfield 대화형 3D 환경 · Rust 백엔드 · Docker·Redis·WebSocket
+## 오픈소스 Image-to-3D · A6000 두 장 · GLB/OpenUSD · Rust·Redis·WebSocket
 
 - 작성일: 2026-09-29, Asia/Seoul.
 - 현재 정본 위치: `/home/dlwhdtmd/energy-digital-twin/jeju_power_grid_digital_twin_design.md`.
-- 반영한 사용자 수정: 실제 제주 지역 사진을 Higgsfield에 반영해 지역 환경과 디지털 트윈 프런트를 만든다. VWorld/GIS/DEM은 위치·높이·배치의 보조 자료로 활용한다.
+- 반영한 사용자 수정: Higgsfield를 제외하고 오픈소스 Image-to-3D 모델을 사용한다. 이전 대상 GPU는 사용자 확인 기준 A6000 두 장이다. Omniverse·Unity·Unreal 연동을 검증 가능한 요구사항으로 포함한다. VWorld/GIS/DEM은 위치·높이·배치의 보조 자료다.
 - 문서 단계: 사용자 검토용 설계 기획서. 구현 완료·통합시험 완료를 뜻하지 않는다.
 - 작성 방식: Superpowers `brainstorming`의 architectural 경로. 기존 요구와 타당성 조사에 근거해 범위·구성·검증 기준을 정의한다.
 - 선행 문서: [기획서 v0.1](jeju_power_grid_digital_twin_plan.md), [데이터·수학·Rust 타당성 검토](jeju_power_grid_data_and_modeling_review.md).
 - 1차 결과물: 제주 전력설비를 실제 좌표에 배치하고, 카메라 이동·설비 선택·시간 변경이 가능한 연구·시연용 3D 앱.
-- 추가 사용자 요구: Rust 백엔드를 Docker로 실행하고 Redis 캐시와 WebSocket을 사용한다. Higgsfield의 프런트 제작 가능성과 GPU 필요성을 검토한다.
-- 실행안: **Higgsfield로 이미지 기반 3D 환경·대화형 프런트 제작 + Docker의 Rust 백엔드 + Redis 캐시 + WebSocket**. 이 방향은 사용자 요구다. Higgsfield의 구체적인 제작 흐름·결과 코드/자산 접근·외부 서버 연결·배포 조건은 첫 통합 검증에서 확인한다.
-- 구현 준비에서 확인한 제약: 설치된 Higgsfield 플러그인의 `website-builder` 클라이언트는 image-to-3D/mesh 생성과 회전 가능한 3D 모델을 지원하지 않는다고 명시한다. 아래의 Higgsfield 3D 제작 경로는 사용자 목표이며 이 플러그인의 확인된 기능을 뜻하지 않는다. 16.2절의 최신 연결 상태와 [구현 계획](jeju_power_grid_implementation_plan.md)을 따른다.
+- 추가 사용자 요구: Rust 백엔드를 Docker로 실행하고 Redis 캐시와 WebSocket을 사용한다. GPU는 3D 자산 제작과 선택한 렌더러에 사용하며 전력 계산은 CPU로 시작한다.
+- 제안 실행안: **TRELLIS.2로 개별 설비 자산 제작 + GLB/OpenUSD + Omniverse 첫 연동 + Docker의 Rust 백엔드·Redis·WebSocket**. TRELLIS.2와 Omniverse 우선 검증은 조사에 따른 추천이며 설치·실행 검증 전이다. Unity/Unreal은 같은 자산과 API의 호환성 확인 대상이다.
+- 최신 모델·GPU·엔진 호환성 계약은 18절과 [구현 계획](jeju_power_grid_implementation_plan.md)에 기록한다. “엔터프라이즈 기능 완벽 호환”은 현재 검증된 결과로 사용하지 않는다.
 
 ## 1. 목적과 성공의 정의
 
-사용자는 제주 전체 전력설비의 공간 분포와 시간별 수요·재생출력 변화를 함께 살펴보고, 선택한 지역의 실제 풍경·시설 외형과 확보된 정보를 확인한다. 실제 제주 현장 사진을 기준으로 Higgsfield에서 주변 환경·시설과 대화형 화면을 제작한다. 실제 위치·지형·선로 경로·데이터 시점은 GIS와 원천 자료에 근거한다.
+사용자는 제주 전체 전력설비의 공간 분포와 시간별 수요·재생출력 변화를 함께 살펴보고, 선택한 지역의 실제 풍경·시설 외형과 확보된 정보를 확인한다. 실제 제주 현장 사진을 기준으로 오픈소스 모델과 다중 사진 복원 도구로 자산을 제작하고, 렌더링 엔진에서 주변 환경·시설과 대화형 화면을 구성한다. 실제 위치·지형·선로 경로·데이터 시점은 GIS와 원천 자료에 근거한다.
 
-첫 성공은 **같은 제주 지역의 사진이 반영된 Higgsfield 3D 환경에서 대표 설비 선택·카메라 이동·Rust API의 시간별 데이터 갱신을 수행하는 것**이다. 기존 모델·공간 자료가 이 환경 제작에 유용하면 재사용한다. 이후 제주 전체 지도와 주요 시설로 확대한다. 원 기획서의 Level 3를 1차 제품 목표로 삼되, 현재 확보한 시계열이 지역 집계 중심이라는 한계를 화면과 데이터 계약에 반영한다.
+첫 성공은 **같은 제주 지역의 사진이 반영된 3D 환경에서 대표 설비 선택·카메라 이동·Rust API의 시간별 데이터 갱신을 수행하는 것**이다. 기존 모델·공간 자료가 이 환경 제작에 유용하면 재사용한다. 이후 제주 전체 지도와 주요 시설로 확대한다. 원 기획서의 Level 3를 1차 제품 목표로 삼되, 현재 확보한 시계열이 지역 집계 중심이라는 한계를 화면과 데이터 계약에 반영한다.
 
-Higgsfield는 사진이 반영된 3D 자산·장면과 프런트 제작을 담당한다. 3D Jutsu의 editable scene/GLB와 Supercomputer의 대화형 웹 제작 기능을 구분해 연결한다(16절). 영상 출력은 선택 기능이다. 물리적 전력 흐름과 실제 설비 운전 상태는 검증된 모델·계측이 담당한다. Rust는 데이터 조회·검증·캐시·API·WebSocket·후속 계통 계산을 담당한다.
+GPU의 Python 추론 컨테이너는 사진 기반 3D 자산 제작을, 선택한 렌더링 엔진은 장면·상호작용을 담당한다(18절). Rust 서비스와 자료 준비용 Python 실행부의 책임을 구분한다. 영상 출력은 선택 기능이다. 물리적 전력 흐름과 실제 설비 운전 상태는 검증된 모델·계측이 담당한다. Rust는 데이터 조회·검증·캐시·API·WebSocket·후속 계통 계산을 담당한다.
 
 ## 2. 합의한 요구와 설계 가정
 
@@ -29,7 +29,7 @@ Higgsfield는 사진이 반영된 3D 자산·장면과 프런트 제작을 담�
 | 사용 목적 | 기존 기획서에 명시된 연구·시연용 공간·시간 전력망 탐색 |
 | 우선 범위 | Level 3 MVP: GIS 공간 표시 + 지역 집계 시계열 + 설비 선택 |
 | 백엔드 요구 | Docker 실행, Rust API·계산, Redis 캐시, WebSocket 최신 상태 전달 |
-| 프런트 요구 | 실제 지역 사진을 반영해 Higgsfield로 제작한 대화형 3D 화면. Rust 서버 연결과 배포 경로는 실제 산출물로 검증 |
+| 프런트 요구 | 실제 지역 사진으로 만든 GLB/OpenUSD를 표시하는 대화형 3D 화면. Omniverse 첫 연동을 추천하며 엔진별 Rust 연결을 실제 검증 |
 | 표현 정확도 | 제주 지형·시설 좌표·GIS 선로 경로는 원천에 근거. 시설 외형은 대표 모델과 참조 이미지 수준. 측량·CAD 수준의 시설 복원은 별도 범위 |
 | 기존 자산 재사용 | PostgreSQL/PostGIS, 수급·기상·발전 수집기, 기존 GIS, 감사 산출물을 활용 |
 | 검증 전 사용하지 않을 결과 | 현재 추정 DC 결과를 실제 선로 부하율·혼잡·HVDC 계측으로 표시하지 않음 |
@@ -38,15 +38,15 @@ Higgsfield는 사진이 반영된 3D 자산·장면과 프런트 제작을 담�
 
 ## 3. 접근 방식 비교와 기본안
 
-| 방식 | 장점 | 추가 작업 / 제약 | 선택 위치 |
-|---|---|---|---|
-| Rust API + Higgsfield 제작 웹 프런트·이미지 기반 3D | 이미지 기준 환경·시설·UI를 같은 제작 흐름으로 구성하고 웹에서 탐색 | 결과 자산/코드 접근, 좌표·ID·외부 REST/WS 연결과 브라우저 성능 확인 | **사용자가 지정한 기본안** |
-| Rust API + Higgsfield GLB + Bevy | Higgsfield 이미지 기반 자산을 재사용하며 표시 실행부도 Rust로 구성 | GLB 호환·지형·좌표·빌드 검증. 프런트 실행부는 별도 개발 | 향후 사용자가 네이티브 실행을 선택할 때 대안 |
-| VWorld 공공 공간 활용 | 제공된 지형·건물·geometry를 위치/외형 제작의 보조 자료로 활용 | 구역별 제공 범위·원본 이용 형식/권한 확인 | 기본 프런트를 대체하지 않는 보조 옵션 |
+| 방식 | 적용 대상 | 판단 |
+|---|---|---|
+| TRELLIS.2 이미지 기반 생성 | 개별 설비·건물·주변 지물의 GLB 자산 | A6000에서 우선 시험할 추천안. 보이지 않는 부분과 치수는 검증 필요 |
+| 같은 장소 다중 사진의 SfM/MVS 복원 | 실제 지역 배치·시설 외형의 더 충실한 복원 | 겹치는 여러 방향 사진·기준 치수가 있을 때 사용 |
+| GIS·DEM·공공 3D 재사용 | 위치·지형 높이·선로 경로·기존 geometry | 두 제작 경로의 공간 기준으로 활용 |
 
-첫 범위는 제주 한 지역과 대표 시설로 제한한다. 광역 타일 스트리밍 엔진을 별도로 만드는 일은 MVP에 포함하지 않는다. Higgsfield가 제작한 결과의 렌더링 방식·좌표계·모델 node를 실제로 확인한 후 GIS를 연결한다.
+첫 범위는 제주 한 지역과 대표 시설로 제한한다. 생성 모델 하나로 제주 전체의 정확한 지리·전기 연결을 복원했다고 판단하지 않는다. 시설은 독립적으로 선택 가능한 mesh와 ID를 유지하고, 렌더러에서 전체 장면을 조립한다.
 
-검증 순서는 **같은 장소의 사진 → Higgsfield 3D 장면·프런트 → 시설 ID·GIS 정합 → Rust snapshot·WebSocket 갱신**이다. VWorld는 14.8절의 보조 옵션으로 유지한다. 서비스의 제작 기능과 실제 Rust 데이터 연결의 성공은 별도로 판정한다.
+검증 순서는 **사진 → GPU 자산 생성/복원 → GLB/OpenUSD와 시설 ID → GIS 정합 → 렌더러 → Rust HTTP·WebSocket**이다. Omniverse를 첫 검증 대상으로 추천하고 Unity/Unreal에는 같은 교환 자산의 import와 데이터 대응을 확인한다. 세 엔진의 모든 기능 구현을 첫 MVP 범위로 묶지 않는다.
 
 ## 4. 1차 MVP 범위
 
@@ -55,7 +55,7 @@ Higgsfield는 사진이 반영된 3D 자산·장면과 프런트 제작을 담�
 1. 실제 제주 지형, 해안 경계, 발전설비·변전소·송전선·HVDC 세 경로의 공간 표시.
 2. 카메라 이동·회전·확대/축소, 전체 제주 보기와 선택 시설로 이동.
 3. 풍력·태양광·변전소·화력·HVDC 시설의 종류별 표시와 레이어 켜기/끄기.
-4. 같은 제주 지역 사진을 Higgsfield에 반영해 해안/도로/돌담/식생·대표 설비의 작은 3D 환경과 프런트를 제작. 나머지 시설은 재사용 모델/표식으로 시작.
+4. 같은 제주 지역 사진으로 자산을 제작해 해안/도로/돌담/식생·대표 설비의 작은 3D 환경과 프런트를 제작. 나머지 시설은 재사용 모델/표식으로 시작.
 5. 설비 선택 시 이름·종류·좌표·확인된 용량·자료 기준일·확보된 상태 표시.
 6. 제주 전체 수요·풍력·태양광·재생 합계·공급능력의 시간별 재생과 최신 자료 조회.
 7. 실제 존재하는 시점을 선택하는 시간축, 재생/정지, 현재 선택 시점과 자료 출처 표시.
@@ -69,7 +69,7 @@ Higgsfield는 사진이 반영된 3D 자산·장면과 프런트 제작을 담�
 - HVDC별 실제 흐름과 운전제약을 반영한 재급전, ESS, 출력제어 최적화.
 - 미래 수요·재생 예측과 위험도, N−1·상태 추정.
 - 전 배전망·개별 수용가·보호·주파수/인버터 EMT 모델.
-- 모든 시설의 정밀 외형, 다중 사용자 편집, Higgsfield 제작 자동화, 영상 제작.
+- 모든 시설의 정밀 외형, 다중 사용자 편집, 상시 GPU 생성 서비스, 영상 제작.
 
 확장은 아래 데이터 통과 조건에 따라 독립 설계·계획으로 구체화한다. 1차 MVP 완성을 위해 이 기능들을 함께 개발하지 않는다.
 
@@ -99,9 +99,9 @@ MVP의 기본 조회는 Hub의 GIS와 Demand의 수급으로 충분하다. 개�
 
 | 우선순위 | 필요한 입력 | 확보/처리 방향 | 통과 조건 |
 |---|---|---|---|
-| Higgsfield 제작 경로 확인 | 같은 지역의 사용 가능한 사진, 계정/연결, 편집 가능한 장면·프런트 결과 | Jutsu와 Supercomputer의 지원 제작 흐름을 확인 | 실제 사진 반영, 자산/코드 접근, 시설 선택과 Rust API·WS 연결 가능 여부 확인 |
+| GPU 자산 제작 경로 확인 | 사용 가능한 사진, A6000 두 장의 실제 접근, 고정한 모델/코드 버전 | TRELLIS.2 단일 자산 추론·GLB export부터 확인 | 사진 대응·형상/재질·GPU 메모리·시설 ID 연결 검증 |
 | 공공 공간 보조 경로 | VWorld 키·도메인, 제주 관심 구역 | 제공 공간·좌표/속성을 확인해 제작에 보조 사용 | 지형·건물·텍스처의 범위/기준일/형식·이용 조건 확인 |
-| 첫 통합 검증 | 대표 시설 ID·좌표, 참조 사진과 Higgsfield 장면·프런트 | Higgsfield로 사진 반영 환경을 제작하고 유용한 기존 모델을 보조 재사용 | 자산 로딩·크기/축·선택·GIS 배치·두 시점 이상 데이터 연결 성공 |
+| 첫 통합 검증 | 대표 시설 ID·좌표, 참조 사진과 생성 GLB/OpenUSD | 렌더링 엔진에서 장면을 조립하고 유용한 기존 모델을 재사용 | 자산 로딩·크기/축·선택·GIS 배치·두 시점 이상 데이터 연결 성공 |
 | 지형 포함 MVP | 기존 DEM의 제주 추출본, 해안선/육지 경계, 고도 기준·자료 조건 | Energy-hub DEM/지형 타일 후보를 검증해 재사용. 지역 외형은 현장 사진으로 재현 | 원본·해상도·CRS·수직 기준·NoData·사용 조건을 기록하고 사진 기반 지역 환경과 맞춤 |
 | 전체 시설 표시 | GIS·공식 시설 master·3D 객체 대응 | 원천별 ID 보존, 검증한 시설만 병합 | 같은 시설/다른 전압·터빈/단지·중복 geometry를 구분 |
 | 그래픽 실행 | 표시 PC 또는 브라우저의 그래픽 지원 | API 서버와 표시 클라이언트 분리 | 실제 표시 장치에서 로딩·조작·메모리/FPS 측정 |
@@ -109,21 +109,22 @@ MVP의 기본 조회는 Hub의 GIS와 Demand의 수급으로 충분하다. 개�
 | HVDC 운영 분석 | #1/#2/#3별 MW·방향·손실·가용한계·방향전환/램프 | 링크별 운영 자료·계측 | 정격·가용범위·관측값과 시나리오를 구분 |
 | 예측/출력제어 | 풍속/풍향·예보 발행시각, 가용출력·제어 지령/실행량 | 기상/운영 원천 보강 | 미래 정보가 학습 입력에 섞이지 않는 시간순 검증 |
 
-공식 Visit Jeju 페이지의 실사 사진 2장을 프로젝트에 저장·확인했다. 다만 배너 해상도/서로 다른 구도이며, 정밀 복원용 다중 사진과 제작에 사용할 사진별 조건은 아직 확보되지 않았다. export GLB와 Higgsfield 계정 접근도 실행 검증하지 않았다. 따라서 첫 통합 검증을 착수 단계에 둔다. 사진에서 보이지 않는 부분을 생성한 형상은 추정이며, 시설 정밀 재현에는 다중 시점 사진·도면·치수가 필요하다.
+공식 Visit Jeju 페이지의 실사 사진 2장을 프로젝트에 저장·확인했다. 다만 배너 해상도/서로 다른 구도이며, 정밀 복원용 다중 사진과 제작에 사용할 사진별 조건은 아직 확보되지 않았다. GPU의 모델 추론·GLB export와 엔진 실행도 검증하지 않았다. 따라서 첫 통합 검증을 착수 단계에 둔다. 사진에서 보이지 않는 부분을 생성한 형상은 추정이며, 시설 정밀 재현에는 다중 시점 사진·도면·치수가 필요하다.
 
-Copernicus GLO-30 같은 전 지구 DSM은 제주 전체 지형 후보지만 시설 상세 측량을 대신하지 않는다. 30m View Service의 최신 등록/접근 조건과 다운로드 권한을 별도로 확인한다. 설치형 Higgsfield Blender 플러그인은 공식 Windows/macOS 범위와 지원 Blender 버전을 확인하며, 현재 Linux 서버에서의 지원을 전제로 삼지 않는다.
+Copernicus GLO-30 같은 전 지구 DSM은 제주 전체 지형 후보지만 시설 상세 측량을 대신하지 않는다. 30m View Service의 최신 등록/접근 조건과 다운로드 권한을 별도로 확인한다. GPU 서버의 OS·드라이버·CUDA·모델 의존성은 실제 이전 대상에서 확인한다.
 
 ## 7. 구성과 데이터 흐름
 
-아래는 사용자가 지정한 Higgsfield 프런트 + Rust 백엔드 구성이다. 제작된 웹 앱의 3D 실행 코드에 API·WS를 연결한다. Higgsfield 생성 서비스에 매 프레임 새 이미지를 요청하는 구조로 만들지 않는다. 실행·캐시·전송 계약은 16절에 기록한다.
+아래는 GPU 자산 제작 + 렌더링 엔진 + Rust 백엔드 구성이다. 제작한 자산을 파일로 저장하고 화면 갱신에는 API·WS의 값을 사용한다. 생성은 자산 제작 시 수행하며 프레임마다 재실행하지 않는다. 실행·캐시·전송 계약은 16절, GPU·엔진 계약은 18절에 기록한다.
 
 ```mermaid
 flowchart LR
-    IMG[같은 제주 지역의 현장 실사 사진] --> HF[Higgsfield 환경·설비·프런트 제작]
-    HF --> VIEW[사진 기반 대화형 3D 프런트]
+    IMG[같은 제주 지역의 현장 실사 사진] --> GEN[GPU 생성·다중 사진 복원]
+    GEN --> FILE[GLB·OpenUSD·시설 ID]
+    FILE --> VIEW[렌더링 엔진의 대화형 3D 화면]
     GIS[기존 PostGIS GIS] --> API[Rust 조회·검증 API]
     TS[기존 제주 시계열] --> API
-    DEM[GIS·DEM·VWorld 보조 자료] --> HF
+    DEM[GIS·DEM·VWorld 보조 자료] --> FILE
     API <--> CACHE[Redis 캐시]
     API -->|HTTP·WebSocket| VIEW
     VIEW --> UI[설비 선택·시간 재생·자료 상태]
@@ -133,20 +134,21 @@ flowchart LR
 |---|---|---|
 | 기존 저장·수집 | 현재 GIS와 수급 원천을 유지 | PostgreSQL/PostGIS와 기존 수집기 재사용 |
 | Rust 서비스 | 조회·단위/시간 검증, 캐시, snapshot·오류/품질·WS 전달 | `sqlx`, `axum`의 `ws`, `tokio`, `serde`, `redis`; Docker 실행 |
-| Higgsfield 제작 프런트 | 사진 기반 환경/시설, 카메라·선택·시간축·표시값 갱신 | 지원 웹 제작 흐름으로 만든 코드와 3D 자산. 실제 renderer·원본 접근·배포 검증 |
+| GPU 제작 컨테이너 | 사진 기반 설비 mesh·PBR 자산 생성 | 고정 버전 TRELLIS.2의 Python 추론·GLB export, 배치 작업부터 시작 |
+| 렌더링 엔진 | 장면 조립, 카메라·선택·시간축·표시값 갱신 | Omniverse 우선 검증 제안. Unity/Unreal은 교환 자산과 API를 별도 확인 |
 | Redis 캐시 | 검증한 GIS/시계열 조회 결과의 일시 보관 | 원천 DB 기준 캐시, namespace·TTL·실패 시 DB 조회 |
 | 자산/지형 묶음 | 원천·단위·축·좌표·라이선스·ID 대응을 보존 | GLB, 제주 지형 mesh, manifest |
 | 후속 계산 | 검증한 계통과 snapshot을 이용한 계산 | 독립 입력/출력 계약. MVP API 경로에 미검증 solver를 연결하지 않음 |
 
-초기에는 Rust API 서버 하나와 선택한 표시 클라이언트 하나로 시작한다. 추가 사용자 요구에 따라 Redis 캐시와 WebSocket을 사용하고 Docker로 실행한다(16절). 기존 PostgreSQL/PostGIS를 재사용하며 추가 메시지 브로커·새 시계열 DB·분산 실행·모델 플러그인 시스템은 만들지 않는다. Rust 의존성은 선택한 MSRV와 호환되는 버전을 고정하고 lockfile로 재현한다. 현재 Rust 1.96.0 설치 사실은 확인했지만 Bevy 빌드 호환성까지 검증한 상태는 아니다.
+초기에는 Rust API 서버 하나와 선택한 표시 클라이언트 하나로 시작한다. 추가 사용자 요구에 따라 Redis 캐시와 WebSocket을 사용하고 Docker로 실행한다(16절). 기존 PostgreSQL/PostGIS를 재사용하며 추가 메시지 브로커·새 시계열 DB·분산 실행·모델 플러그인 시스템은 만들지 않는다. Rust 의존성은 선택한 MSRV와 호환되는 버전을 고정하고 lockfile로 재현한다. 현재 Rust 1.96.0 설치 사실은 확인했지만 API 의존성 빌드나 선택한 렌더러 연동까지 검증한 상태는 아니다.
 
 DB 접속정보는 서버 환경에서 읽고 클라이언트에는 API 주소만 전달한다. 1차 접속 범위는 서버와 표시 PC가 연결된 개발 네트워크로 둔다. 공개 서비스 배포는 별도 요구사항으로 다룬다.
 
 ### 7.1 좌표와 3D 자산
 
-GIS 원본은 EPSG:4326으로 보존한다. 제주 기준 원점은 경도 126.5°, 위도 33.4°, 타원체 고도 0m로 두고 WGS84→ECEF→지역 ENU를 f64로 계산한다. Higgsfield 결과의 축·단위·원점을 확인하고 대응점을 이용해 이 기준과 정합한다. Bevy 대안에서는 X=동, Y=상, Z=남으로 매핑하고 화면용 좌표만 f32로 사용한다. 위경도를 그대로 미터 좌표처럼 넣지 않는다.
+GIS 원본은 EPSG:4326으로 보존한다. 제주 기준 원점은 경도 126.5°, 위도 33.4°, 타원체 고도 0m로 두고 WGS84→ECEF→지역 ENU를 f64로 계산한다. 생성/복원 결과의 축·단위·원점을 확인하고 대응점을 이용해 이 기준과 정합한다. Bevy 대안에서는 X=동, Y=상, Z=남으로 매핑하고 화면용 좌표만 f32로 사용한다. 위경도를 그대로 미터 좌표처럼 넣지 않는다.
 
-고도 자료의 기준이 평균해수면/지오이드이면 타원체 기준과의 변환을 기록한다. Bevy 경로의 첫 지형 제품은 고정 제주 범위의 오프라인 mesh와 해안 경계로 한정한다. VWorld 경로에서는 SDK의 지면 높이와 추가 모델의 고도 기준을 검증한다. 육지 HVDC terminal은 전체 지도 수준에서 함께 표시하고, 제주 밖 시설의 상세 지형·측량 정확도는 MVP 범위에 넣지 않는다.
+고도 자료의 기준이 평균해수면/지오이드이면 타원체 기준과의 변환을 기록한다. 선택한 엔진의 첫 지형 제품은 고정 제주 범위의 오프라인 mesh와 해안 경계로 한정한다. VWorld 대안에서는 SDK의 지면 높이와 추가 모델의 고도 기준을 검증한다. 육지 HVDC terminal은 전체 지도 수준에서 함께 표시하고, 제주 밖 시설의 상세 지형·측량 정확도는 MVP 범위에 넣지 않는다.
 
 자산 manifest는 scene/시설 종류, GLB 경로, scale(m), 방향 보정, pivot, 연결할 시설 ID, 사용한 실사 photo ID, 재구성 방법·추정 부분, 원천·버전·사용 조건을 담는다. facility ID는 자산 node 이름만으로 추측하지 않고 외부 대응표로 연결한다. 필수 glTF 확장·재질·텍스처·축/단위와 node 선택을 먼저 확인한다. 모델을 읽지 못하면 기본 표식으로 시설 선택과 정보 조회를 유지한다.
 
@@ -214,7 +216,7 @@ R/X/B·tap·bus P/Q·발전기 제어한계가 확보되면 \(S_i=V_i\overline{\
 
 | 단계 | 산출물 | 통과 기준 |
 |---|---|---|
-| G0 이미지·제작·실행 준비 | 사용 가능한 지역 사진, Higgsfield 제작/코드 접근, Docker·DB·Redis 설정, 시설 ID·좌표·시간/단위 명세 | 같은 지역 이미지 반영, 계정의 실제 기능·자료 사용 조건·그래픽 실행과 DB 연결 확인 |
+| G0 이미지·제작·실행 준비 | 사용 가능한 사진, GPU 추론 환경·엔진, Docker·DB·Redis 설정, 시설 ID·좌표·시간/단위 명세 | 자산 생성·export, 사진 조건·GPU/그래픽 실행과 DB 연결 확인 |
 | G1 첫 지역 통합 | 확보한 지역 3D 환경 + 대표 설비 표시·선택·Rust API 시간 재생 | 사진 대비 배치·실루엣·재질 검토. 추가 모델 scale/축·pivot, 같은 시설 ID 선택, 두 관측 시점의 집계값 갱신 확인. 개별 계량이 없으면 전체 HUD만 갱신 |
 | G2 공간 확대 | 제주 지형·경계·주요 GIS·HVDC 세 경로 | 원천/기준일 보존, 중복 경로와 전압별 시설 구분, 실제 좌표 배치, 레이어·카메라·선택 동작 |
 | G3 Level 3 MVP | 과거/최신 모드, 품질·결측·오류 표시, 실행 안내 | API 원천 대조, 시간 변경 응답 역전 방지, 0/NULL 구분, 단절·자산 실패 시 화면 유지 |
@@ -246,8 +248,8 @@ G0–G3가 이번 MVP 설계의 범위다. G4–G5는 후속 프로젝트의 조
 | 불확실성 | 대응 | 개발 진행에 미치는 영향 |
 |---|---|---|
 | VWorld 제주 현장 상세·데이터 기준일·네이티브 재사용 미검증 | 공식 SDK에서 관심 구역부터 확인. 부족 시설은 별도 자산으로 보완. 원본 파일 저장/변환 가능 여부 별도 확인 | API 제공 사실만으로 전 제주 실사 품질이나 Bevy import 가능을 확정하지 않음 |
-| Higgsfield 계정의 기능 접근·GLB export·외부 WS 연결 미검증 | Jutsu 장면 제작과 Supercomputer 대화형 프런트 제작을 구분해 작은 산출물 하나 확인 | API 키 보유만으로 제작 기능 접근이나 화면 연결을 완료로 판정하지 않음 |
-| Bevy glTF 확장/재질 호환 | 실제 파일 검사와 로딩, 필요한 경우 호환 형식으로 재export | 생성 성공과 Rust import 성공을 별도 판정 |
+| GPU 추론·엔진 import·외부 WS 연결 미검증 | 대표 자산 하나의 생성→export→엔진→Rust 연결을 확인 | GPU 제원·공식 형식 지원과 실제 통합 성공을 구분 |
+| 엔진별 GLB/USD 확장·재질 호환 | 실제 파일 검사와 로딩, 필요한 경우 호환 형식으로 재export | 생성 성공과 선택한 엔진의 import 성공을 별도 판정 |
 | 기존 DEM의 수직 기준·변환 품질과 현장 상세 미검증 | 제주 추출/manifest 검증, 실사 사진과 기준점으로 지역 scene 보완 | 고도 자료와 사진 기반 외형의 검증을 구분. 데이터 API 개발은 진행 가능 |
 | 부정확한 시설 병합·연결 추정 | 원천 ID·전압·객체 종류 보존, 확인한 대응만 적용 | 지도와 검증된 전기 network를 구분 |
 | 상세 계량·전기 파라미터 부족 | 지역 집계 MVP를 완료하고 기관 자료/계측 보강 | 실제 혼잡·전압·개별 HVDC 상태의 검증 범위 제한 |
@@ -255,15 +257,15 @@ G0–G3가 이번 MVP 설계의 범위다. G4–G5는 후속 프로젝트의 조
 
 ## 13. 설계 검토와 다음 산출물
 
-이 기획서는 사용자가 합의한 목적과 확보 데이터에 근거한 검토용 v0.2다. 검토 시에는 Higgsfield 이미지 반영·프런트 제작·외부 데이터 연결, Docker·Redis·WS 계약, 관측/추정 구분과 G0–G3 완료 기준을 확인한다.
+이 기획서는 사용자가 합의한 목적과 확보 데이터에 근거한 검토용 v0.3다. 검토 시에는 사진 기반 GPU 제작·엔진 호환성·외부 데이터 연결, Docker·Redis·WS 계약, 관측/추정 구분과 G0–G3 완료 기준을 확인한다.
 
-기획서 검토가 끝나면 G0–G3에 한정한 상세 구현 계획을 Superpowers `writing-plans`로 작성한다. 그 계획은 파일·인터페이스·검증 명령·작업 순서를 고정한다. 제품 코드 작성·의존성 설치·외부 프로젝트 생성·Higgsfield 과금 실행은 아직 수행하지 않았다.
+[구현 계획](jeju_power_grid_implementation_plan.md)에 Rust API·S0/S1 계산·GPU 자산 제작·엔진 검증 작업을 구체화한다. GPU/렌더러 변경을 반영해 기존 Task 5를 대체한다. 제품 코드·의존성 설치·모델 다운로드·GPU 이전은 아직 수행하지 않았다.
 
-## 14. 제주 실물 사진 반영과 Higgsfield 환경 제작
+## 14. 제주 실물 사진 반영과 3D 환경 제작
 
 ### 14.1 수집 단위와 첫 지역
 
-**같은 장소의 실제 사진을 Higgsfield에 반영해 해안·도로·돌담·식생·건물·전력설비와 탐색 가능한 3D 화면을 만든다.** 기존 공공 모델이나 geometry가 이 제작에 유용하면 보조 자료로 재사용한다. 전체 제주 개요에서 상세 지역을 선택하면 그 현장 환경으로 이동하는 구조다. 위성영상만으로 현장 모습 재현을 완료 판정하지 않는다.
+**같은 장소의 실제 사진으로 자산을 생성/복원하고, 해안·도로·돌담·식생·건물·전력설비가 있는 탐색 가능한 3D 화면을 구성한다.** 기존 공공 모델이나 geometry가 이 제작에 유용하면 보조 자료로 재사용한다. 전체 제주 개요에서 상세 지역을 선택하면 그 현장 환경으로 이동하는 구조다. 위성영상만으로 현장 모습 재현을 완료 판정하지 않는다.
 
 첫 후보는 공식 현장 사진을 확보한 **신창풍차해안도로와 인접 해안 구간**이다. 해안·도로·바위·바다·풍력설비를 함께 비교할 수 있다. 관광지 명칭을 DB의 Hangyoung 발전소 ID와 자동 연결하지 않고 실제 시설/터빈의 대응을 별도로 확인한다. 관광지 좌표도 사진을 찍은 카메라 좌표와 구분한다.
 
@@ -306,16 +308,16 @@ photo catalog에는 photo/scene ID, 대상 시설 ID, 공식 페이지/원본 UR
 
 ### 14.5 사진에서 3D 환경을 만드는 두 경로
 
-**기본 경로 — Higgsfield에서 사진이 반영된 편집 가능한 환경·프런트 제작**
+**기본 경로 — 개별 설비 생성과 지역 장면 조립**
 
-1. 같은 지역의 실사 사진을 확인하고 해안/도로/바위/돌담/식생/시설로 구성을 나눈다.
-2. 확인한 GIS 위치·도로/해안 기준과 치수에 맞춘 작은 장면의 기본 형상을 만든다.
-3. 사용 가능한 실사 사진을 reference로 Higgsfield 3D Jutsu/지원 제작 도구에서 주변 환경과 시설 mesh를 제작·수정한다. 사진의 전경을 화면 배경으로 붙이는 작업으로 완료 판정하지 않는다.
-4. 사용할 수 있는 지물 사진으로 재질을 구성하고, 글자·그림자·원근이 그대로 표면에 굳는 부분을 검토한다. 입력에 없는 뒤쪽 형상과 재질은 추정 제작으로 기록한다.
-5. 시설과 환경을 따로 선택 가능한 object로 유지하고, 정리한 장면을 GLB로 export한다.
-6. Higgsfield Supercomputer의 대화형 웹 제작 흐름으로 환경 탐색·시설 선택·시간축 화면을 만들고, 확인한 GLB/장면과 우리 시설 ID를 연결한다. 결과 코드의 Rust HTTP·WebSocket 연동을 검증한다.
+1. 같은 지역의 사진에서 설비와 배경을 구분하고 사용 가능한 원본을 선정한다.
+2. 대표 설비의 crop/mask를 준비해 GPU의 TRELLIS.2로 mesh·PBR 자산을 만든다. 첫 입력은 전체 외형이 보이는 설비로 선정한다.
+3. 실제 사진과 대조해 실루엣·얇은 구조물·후면·재질을 확인하고, 필요한 부분을 제작 도구에서 수정한다.
+4. 알려진 치수로 scale을 맞추고 타워·회전자처럼 움직일 부분의 node/pivot을 정리한다. 생성 모델이 자동 rigging을 완료한다고 가정하지 않는다.
+5. GLB와 시설 ID manifest를 내보내고, 엔진 교환용 OpenUSD를 변환·검증한다.
+6. GIS/DEM의 위치·높이·도로/해안 기준에 맞춰 장면을 조립하고 Rust HTTP·WebSocket을 연결한다.
 
-이 경로의 결과는 실사 사진을 참고해 제작한 3D 재현이다. Higgsfield의 장면 생성이 실제 치수·모든 후면·전기 연결을 측정해 준다고 전제하지 않는다. 실제 계정의 생성과 export는 G0/G1에서 검증한다.
+보이지 않는 형상은 추정 제작이다. 단일 객체 생성 모델을 사용했다는 사실만으로 실제 지역 전체의 형상·배치·전기 연결을 복원했다고 판단하지 않는다.
 
 **정밀 경로 — 같은 장소의 다중 시점 사진으로 복원**
 
@@ -332,11 +334,11 @@ SfM의 주요 모델은 영상 관측점과 카메라 투영의 재투영 오차
 
 단안 사진으로 복원한 모델은 절대 scale·방향·원점이 정해지지 않을 수 있어, 알려진 치수/기준점으로 \(p_{geo}=sRp_{sfm}+t\) 정합을 추가한다. 충분한 비퇴화 대응점과 독립 확인점을 두고 정합 잔차를 기록한다. 촬영 위치 GPS만으로 시설 내부의 미터 정확도가 확보됐다고 판정하지 않는다.
 
-기존 복원/제작 도구를 자료 준비에 사용하고, 최종 탐색·데이터 연결·계통 계산은 Rust에서 실행한다. Gaussian Splatting/NeRF는 별도 검증 후보이며 선택 가능한 시설 mesh와 데이터 대응이 필요한 첫 MVP의 기본 렌더 경로로 넣지 않는다.
+기존 복원/제작 도구를 자료 준비에 사용하고, 탐색·표현은 렌더링 엔진에서, 데이터 연결·계통 계산은 Rust에서 실행한다. Gaussian Splatting/NeRF는 별도 검증 후보이며 선택 가능한 시설 mesh와 데이터 대응이 필요한 첫 MVP의 기본 렌더 경로로 넣지 않는다.
 
 ### 14.6 GIS/DEM이 보조하는 범위
 
-실사 사진은 Higgsfield 환경 제작의 주 입력이며 주변 지물·시설 외형·재질·구도의 대조 기준이다. GIS/DEM은 지역의 위치·바닥 높이·범위를 맞추는 보조 자료다. 공공 3D를 활용하면 제공된 모델의 상세·기준일과 사진에서 확인한 모습을 함께 검토한다. 현장 사진의 카메라 구도를 전체 지형의 정사영상처럼 투영하지 않는다.
+실사 사진은 3D 자산 제작의 주 입력이며 주변 지물·시설 외형·재질·구도의 대조 기준이다. GIS/DEM은 지역의 위치·바닥 높이·범위를 맞추는 보조 자료다. 공공 3D를 활용하면 제공된 모델의 상세·기준일과 사진에서 확인한 모습을 함께 검토한다. 현장 사진의 카메라 구도를 전체 지형의 정사영상처럼 투영하지 않는다.
 
 이번에 두 iSCSI 마운트 밖의 기존 Energy-hub에서 DEM과 terrain 타일을 발견했다. 다음은 실제 읽기 결과이며 지역 실사 사진 확보와는 다른 자료다.
 
@@ -352,11 +354,11 @@ SfM의 주요 모델은 영상 관측점과 카메라 투영의 재투영 오차
 
 원본 사진에 맞춘 확인 시점과 새 카메라 시점을 모두 검토하고, 후면·가림·scale 등의 추정 부분을 기록한다. 정밀 경로에서는 사진 등록률·재투영 오차·기준점 오차·빈 영역을 추가 검사한다. 발전 데이터는 검증한 시설 ID 또는 전체 제주 HUD에 연결한다.
 
-현재 완료한 것은 **공식 현장 사진 2장 수집·육안 확인·출처 목록 기록과 설계 보완**이다. 고해상도 다중 촬영 세트 확보, Higgsfield 생성/export, COLMAP 재구성, Bevy 장면 실행은 아직 수행하지 않았다.
+현재 완료한 것은 **공식 현장 사진 2장 수집·육안 확인·출처 목록 기록과 설계 보완**이다. 고해상도 다중 촬영 세트 확보, GPU 생성/export, COLMAP 재구성, 렌더링 엔진 실행은 아직 수행하지 않았다.
 
 ### 14.8 국토부 VWorld API의 보조 활용 범위
 
-VWorld는 제주 공간 자료·위치·높이·기존 외형의 보조 후보로 조사했다. **현재 기본안은 이미지가 반영된 Higgsfield 환경·프런트이며, 이 절의 VWorld SDK 화면은 자료 확인용 선택 경로다.** 지형·건물 서비스, 현장 거리 파노라마, 내려받아 편집할 원본 모델은 각각 제공 방식이 다르다.
+VWorld는 제주 공간 자료·위치·높이·기존 외형의 보조 후보로 조사했다. **현재 기본안은 이미지가 반영된 3D 환경·렌더러이며, 이 절의 VWorld SDK 화면은 자료 확인용 선택 경로다.** 지형·건물 서비스, 현장 거리 파노라마, 내려받아 편집할 원본 모델은 각각 제공 방식이 다르다.
 
 | 경로 | 활용할 내용 | 이번에 확인한 범위와 남은 확인 |
 |---|---|---|
@@ -388,8 +390,8 @@ VWorld 공식 예제에는 `viewer.entities.add`의 model URI로 자체 GLB를 �
 
 1. 이 프로젝트에서 사용할 VWorld 계정·3D API 인증키와 등록 도메인/개발 주소를 확인한다. 공식 안내의 초기화 URL은 `https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=<프로젝트키>&domain=<등록도메인>` 형태다. 공식 예제에 포함된 키를 재사용하지 않는다. 키·배포 조건·현재 트래픽 정책은 프로젝트 등록에서 확인한다.
 2. 신창 해안의 확정 관심 구역을 SDK로 열고 지도 이동/회전, 지형, 건물 유무, 외벽·지붕 텍스처, 풍력·해안 지물의 표현과 자료 기준일을 기록한다. 전국 서비스라는 안내를 해당 구역의 상세 모델 제공 보증으로 해석하지 않는다.
-3. Higgsfield 제작에 도움이 되는 도로 방향·해안·건물 위치/높이와 누락 지물을 확인한다. 제공 원본을 가져올 수 있는 경우에만 형식·권한을 확인해 제작 입력으로 사용한다. 지도 화면을 볼 수 있다는 사실만으로 원본 모델 확보를 완료 판정하지 않는다.
-4. 제공 자료가 Higgsfield 제작에 필요한 부분을 보완할 수 있는지 판단한다. 모델을 가져와 편집할 때는 원본 자료의 저장·변환·배포 가능 여부를 확인한다. SDK 무료 사용 안내만으로 원본 타일의 일괄 저장을 허용한 것으로 해석하지 않는다.
+3. 3D 제작에 도움이 되는 도로 방향·해안·건물 위치/높이와 누락 지물을 확인한다. 제공 원본을 가져올 수 있는 경우에만 형식·권한을 확인해 제작 입력으로 사용한다. 지도 화면을 볼 수 있다는 사실만으로 원본 모델 확보를 완료 판정하지 않는다.
+4. 제공 자료가 3D 제작에 필요한 부분을 보완할 수 있는지 판단한다. 모델을 가져와 편집할 때는 원본 자료의 저장·변환·배포 가능 여부를 확인한다. SDK 무료 사용 안내만으로 원본 타일의 일괄 저장을 허용한 것으로 해석하지 않는다.
 
 기존 `/mnt/nvme/Energy-hub/research/scripts/geocode_vworld_fallback.py`에는 VWorld 주소→좌표 API 호출이 있다. 이는 기존 공간 자료 준비 경로의 근거이며 3D API 인증·제주 표출이 검증됐다는 근거는 아니다. 계정·키·SDK 호환을 확인하지 않고 기존 스크립트의 값을 새 제품에 복사하지 않는다.
 
@@ -403,18 +405,17 @@ VWorld 공식 예제에는 `viewer.entities.add`의 model URI로 자체 GLB를 �
 - [제주 공식 자료·문헌](exa-results/jeju-grid-audit-2026-09-29/jeju_sources.md), [수식·필요 관측·문헌](exa-results/jeju-grid-audit-2026-09-29/math_literature.md), [Rust 조사](exa-results/jeju-grid-audit-2026-09-29/rust_feasibility.md).
 - [신창풍차해안도로 공식 사진 페이지](https://www.visitjeju.net/kr/detail/view?contentsid=CNTS_200000000007676), [신창–차귀해안도로 공식 사진 페이지](https://m.visitjeju.net/kr/detail/view?contentsid=CONT_000000000500403), [Photo Jeju](https://www.visitjeju.net/photojeju/category), [포토코리아](https://phoko.visitkorea.or.kr/main/index.kto): 지역 실사 사진과 파일별 사용 조건을 확인할 원천.
 - [COLMAP 공식 tutorial](https://colmap.github.io/tutorial.html): 겹치는 여러 시점 사진으로 카메라·형상·밀집점·mesh를 복원하는 경로와 촬영 조건.
-- [Higgsfield 3D Jutsu](https://higgsfield.ai/blog/higgsfield-3d-jutsu), [Blender 기능/요구사항](https://higgsfield.ai/blog/higgsfield-blender-plugin), [help center](https://higgsfield.ai/creator-hub/help-center/integrations/external-integrations-higgsfield): 이미지/참조 기반 editable scene와 GLB, 설치형 지원 범위. 계정 실제 사용과 export는 미검증.
 - [Bevy glTF 공식 문서](https://docs.rs/bevy/latest/bevy/gltf/index.html), [Bevy setup](https://bevy.org/learn/quick-start/getting-started/setup/): Rust 표시 경로와 GLB 호환·설치 조건.
 - [Cesium georeference](https://cesium.com/learn/cesium-unreal/ref-doc/classACesiumGeoreference.html): 원 기획서 광역 좌표 기능과 Bevy 대안의 차이.
 - [Copernicus DEM](https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM), [2026.08 View Service 접근 조건](https://dataspace.copernicus.eu/news/2026-8-25-copernicus-dem-30m-view-service-update): 지형 후보의 해상도·DSM 의미·접근 조건.
 
 외부 문서에 대한 기능 판단은 선행 조사와 이번 설계 작성에 사용한 문서 근거다. 사용자 계정의 권한, 실제 다운로드·자산 생성·렌더링·수치 계산의 성공을 대신하는 증거는 아니다.
 
-## 16. 구현 구성 검토: Higgsfield 프런트 + Docker의 Rust·Redis·WebSocket
+## 16. 구현 구성 검토: 렌더러 + Docker의 Rust·Redis·WebSocket
 
 ### 16.1 결론과 현재 준비 상태
 
-사용자 요구인 **실제 제주 사진 → Higgsfield 3D 환경·프런트 → Rust 데이터/계산 → Redis 캐시·WebSocket 갱신**을 구현 기준으로 둔다. 백엔드는 CPU로 시작할 수 있다. 키가 저장됐다는 사실과 이미지 반영·화면 실행·데이터 연결이 성공했다는 사실은 구분한다.
+사용자 요구인 **실제 제주 사진 → GPU 자산 생성/복원 → 렌더러 ↔ Rust 데이터/계산·Redis·WebSocket**을 구현 기준으로 둔다. 백엔드는 CPU로 시작할 수 있다. 키가 저장됐다는 사실과 이미지 반영·화면 실행·데이터 연결이 성공했다는 사실은 구분한다.
 
 2026-09-29의 읽기 전용 점검 결과는 다음과 같다.
 
@@ -424,31 +425,21 @@ VWorld 공식 예제에는 `viewer.entities.add`의 model URI로 자체 GLB를 �
 - 기존 Redis의 설정은 256MiB·`allkeys-lru`다. 재사용 시 `edt:dev:v1:` namespace와 짧은 TTL·응답 크기 제한을 적용한다. 공용 캐시의 자원 영향은 실제 부하에서 확인하며 설정 변경이나 전체 flush로 관리하지 않는다.
 - 현재 `nvidia-smi`는 드라이버 통신에 실패한다. 아래 CPU 서버 구성의 착수 조건에는 서버 GPU를 넣지 않는다.
 
-### 16.2 Higgsfield가 만드는 부분과 첫 제작 지시
+### 16.2 제작 실행부와 렌더러
 
-**구현 준비 중 확인한 현재 클라이언트 범위:** 설치된 `app-6a3293e129088191abf0875820e839da:website-builder` 지침은 “No image-to-3D. No mesh generation, rigging, or animation clips.”와 “Games built here are 2D”를 명시한다. 따라서 이 플러그인을 호출하면 사진에서 실제 3D 장면·GLB가 만들어진다는 기존 가정은 성립하지 않는다. Plugin Management 조회에서는 Higgsfield가 installed/enabled 상태지만, 현재 세션의 호출 가능 도구 목록에는 Higgsfield 생성·사이트 편집 도구가 노출되지 않았다. 설치 상태와 실제 호출/기능 지원을 구분한다.
+사용자 변경에 따라 Higgsfield를 실행 의존성에서 제외한다. 개별 자산은 오픈소스 Image-to-3D 모델로 생성하고, 실제 장소의 다중 시점 복원과 GIS/DEM을 함께 사용한다. 모델 선택·A6000 배치·교환 형식은 18절을 따른다.
 
-사용자의 실제 3D 목표와 Higgsfield 활용 요구는 유지한다. 별도 Higgsfield 제작 경로에서 편집 가능한 장면/GLB 및 프런트 코드를 실제 확보·검증한 뒤 연결한다. 그 경로가 지원되지 않으면 대체 제작/표시 방식을 사용자와 결정한다. 2D 깊이 효과를 실제 3D 완료로 제시하지 않는다. 독립적인 Rust API·시뮬레이션·Docker 구성은 이 확인과 분리해 진행할 수 있다.
-
-3D Jutsu 공식 문서는 reference가 반영된 편집 가능한 장면과 GLB import/export를 안내한다. Supercomputer는 대화형 웹사이트·앱 제작을 안내하고, Games는 3D 대화형 경험의 생성·배포를 안내한다. Apps 문서에는 React 코드와 직접 Git 접근이 명시되어 있다. 따라서 Higgsfield로 프런트를 제작하고 코드의 데이터 연결부를 수정하는 경로를 검토할 수 있다. 다만 Apps의 생성 도구 템플릿과 일반 웹사이트·Games 흐름은 서로 다르므로, 우리의 조회 중심 디지털 트윈에 맞는 흐름을 선택한다. [3D Jutsu](https://higgsfield.ai/blog/higgsfield-3d-jutsu), [Supercomputer](https://higgsfield.ai/creator-hub/help-center/tools/how-do-i-use-supercomputer), [Apps 코드 접근](https://higgsfield.ai/creator-hub/help-center/tools/what-are-higgsfield-apps), [대화형 3D 경험](https://higgsfield.ai/blog/higgsfield-mcp-gpt6-astra-games-2).
-
-첫 제작 지시는 다음 요구를 포함한다. 사용할 사진은 14절의 이용 조건 확인을 통과한 원본으로 선정한다.
-
-> 첨부한 같은 제주 지역 사진을 반영해 해안·도로·현무암·돌담·식생·대표 풍력설비가 있는 작은 대화형 3D 환경을 만든다. 카메라 이동·회전·확대와 시설 클릭, 이름/정보 패널, 시간 선택을 제공한다. 시설은 따로 선택 가능한 객체로 유지하고 외부 `facility_id`에 대응시킨다. 위치·치수는 제공하는 GIS와 기준점을 적용하고, 사진에서 보이지 않는 형상은 추정으로 기록한다. 상태값은 Rust HTTP API와 WebSocket에서 받아 표시하며, 자료가 없는 개별 발전량을 임의 생성하지 않는다. API 주소는 실행 설정으로 받아 코드의 데이터 연결부를 수정할 수 있게 한다.
-
-먼저 사진 1세트·장면 1개·대표 시설 1개로 이미지 대응과 외부 snapshot 연결을 확인한다. 생성 장면의 GLB와 별도로 대화형 프런트 코드/실행 결과를 확보한다. GLB export만으로 WebSocket과 시간축이 구현된 것으로 판정하지 않는다. 좌표·시설 ID·원천 시각은 우리 데이터 계약을 따른다.
-
-현재 이 세션에 연결된 Higgsfield 호출 도구는 발견되지 않았다. 저장한 미디어 API 키가 Supercomputer/Apps/Games/Jutsu 계정 연결을 자동 제공한다고 가정하지 않는다. 계정 또는 지원 MCP/플러그인 흐름과 실제 결과 접근을 확인해야 한다. 공식 미디어 REST 문서는 이미지·영상의 비동기 요청을 설명하며, 이것만으로 장면·앱 생성 endpoint를 확정하지 않는다. [Higgsfield API](https://docs.higgsfield.ai/docs).
+GPU 추론은 모델의 Python/CUDA 구현을 별도 Docker 배치 작업으로 실행한다. 결과 GLB·텍스처·manifest만 Rust 서비스와 렌더러에서 재사용한다. 공개 생성 API나 상시 작업 큐는 첫 자산 생성에 필요하지 않다. 렌더러에는 시설 선택·시간축·관측/시나리오 모드와 Rust 데이터 연결을 구현한다.
 
 ### 16.3 Docker 실행과 키·DB 연결
 
-“개발 키를 Docker로 띄운다”는 요청은 **개발 서비스를 Docker로 띄우고 키를 실행 시 주입한다**는 구성으로 반영한다. Compose의 `.env`는 값 치환에 쓰이며, 컨테이너 전달은 `environment` 또는 `env_file`로 지정해야 한다. Rust에서 기존 이름 `higs_key`, `vworld_key`를 읽거나 명시적으로 매핑한다. DB 접속에는 `HUB_DATABASE_URL`, `DEMAND_DATABASE_URL`, 캐시에는 `REDIS_URL`을 추가하고, 검증한 개별 발전 조회를 넣을 때 `PV_DATABASE_URL`을 추가한다. [Compose 환경 변수](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/).
+“개발 키를 Docker로 띄운다”는 요청은 **개발 서비스를 Docker로 띄우고 키를 실행 시 주입한다**는 구성으로 반영한다. Compose의 `.env`는 값 치환에 쓰이며, 컨테이너 전달은 `environment` 또는 `env_file`로 지정해야 한다. 기존 `higs_key`는 새 실행 경로에서 사용하지 않는다. `vworld_key`는 보조 API를 사용할 경우에만 명시적으로 주입한다. DB 접속에는 `HUB_DATABASE_URL`, `DEMAND_DATABASE_URL`, 캐시에는 `REDIS_URL`을 추가하고, 검증한 개별 발전 조회를 넣을 때 `PV_DATABASE_URL`을 추가한다. [Compose 환경 변수](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/).
 
-Rust 서비스는 기존 Docker 네트워크를 external로 참조해 DB/Redis의 이름과 컨테이너 포트를 사용한다. 컨테이너 안의 `localhost:5437`은 호스트의 Hub DB가 아니다. 기존 DB를 새로 띄우거나 iSCSI PostgreSQL 저장 디렉터리를 새 서버에 마운트해 여는 방식은 쓰지 않는다. [Compose 네트워크](https://docs.docker.com/compose/how-tos/networking/).
+원천과 같은 호스트의 Rust 서비스는 기존 Docker 네트워크를 external로 참조해 DB/Redis의 이름과 컨테이너 포트를 사용한다. 다른 GPU 호스트로 옮기는 경우 이 네트워크 이름이 통하지 않으므로 연결 주소·터널/내부망 접근을 새로 검증한다. 컨테이너 안의 `localhost:5437`은 호스트의 Hub DB가 아니다. 기존 DB를 새로 띄우거나 iSCSI PostgreSQL 저장 디렉터리를 새 서버에 마운트해 여는 방식은 쓰지 않는다. [Compose 네트워크](https://docs.docker.com/compose/how-tos/networking/).
 
-Higgsfield 미디어 API 비밀키와 DB/Redis 인증정보는 Rust 서비스/제작 작업에만 주입한다. 브라우저에는 공개 가능한 API 주소와 필요한 클라이언트 설정만 전달한다. `.env`는 이미지의 `COPY` 대상과 Git에 포함하지 않는다. `docker compose config`의 전체 출력처럼 치환한 키가 노출되는 검증은 피한다.
+DB/Redis 인증정보는 Rust 서비스에만 주입한다. 브라우저에는 공개 가능한 API 주소와 필요한 클라이언트 설정만 전달한다. `.env`는 이미지의 `COPY` 대상과 Git에 포함하지 않는다. `docker compose config`의 전체 출력처럼 치환한 키가 노출되는 검증은 피한다.
 
-프런트 코드 접근·빌드·서비스 의존성을 확인할 수 있으면 Higgsfield가 만든 프런트를 프로젝트 Docker에서 실행하고 `/api`와 `/api/v1/jeju/ws`를 Rust로 proxy한다. 자체 배포 가능 여부는 실제 산출물로 확인한다. Higgsfield 호스팅에서 실행하면 브라우저가 접근 가능한 HTTPS API/WSS 주소와 허용 Origin을 설정한다. HTTPS 화면에서 HTTP/WS 개발 서버를 그대로 연결하는 구성은 사용하지 않는다. 계정 전용 DB·로그인·생성 기능이 결과에 포함되면 필요한 의존성을 확인하고 우리 원천 DB와 역할을 구분한다.
+렌더러는 Rust 서비스의 접근 가능한 HTTP/WS 주소를 사용한다. 원격 네트워크의 웹 클라이언트는 HTTPS/WSS와 허용 Origin을 설정한다. 네이티브 엔진 클라이언트도 WS handshake와 접근 정책을 맞춘다. 엔진을 서버에서 렌더링해 화면을 전송하는 방식은 브라우저 로컬 렌더링과 자원 요구가 다르며, 첫 엔진 실행 후 배포 방식을 정한다.
 
 ### 16.4 Rust·HTTP·WebSocket의 책임
 
@@ -481,28 +472,28 @@ VWorld 원본 3D 타일 전체나 GLB·이미지 원본을 Redis에 쌓지 않�
 |---|---|---|
 | Rust API·DB·Redis·WebSocket·단위/시간 검증 | 서버 CPU | 서버 GPU 불필요 |
 | 첫 DC 조류·통상적인 AC/LP/MILP 연구 계산 | 서버 CPU solver | GPU를 선행 조건으로 두지 않음. 모델 규모·시나리오 수별 실제 시간 측정 후 가속 검토 |
-| Higgsfield 서비스의 환경·자산·프런트 제작 | 외부 서비스 | 우리 서버 GPU를 할당하는 구조가 아님. 계정의 기능·산출물·서비스 조건 확인 |
-| 사진 기반 3D 화면 렌더링 | 접속 PC의 브라우저/그래픽 장치 | 클라이언트 그래픽 지원 필요. 내장 그래픽도 실제 장면으로 평가하며 별도 GPU 구매를 선행하지 않음 |
+| 오픈소스 Image-to-3D 추론 | A6000 GPU 0의 제작 컨테이너 | 첫 단일 자산의 메모리/시간을 측정. 한 장당 48GB 기준, 18절 참조 |
+| 사진 기반 3D 화면 렌더링 | A6000 GPU 1 또는 표시 PC의 그래픽 장치 | 선택한 엔진·장면으로 검증. 서버 렌더링은 해당 서버 GPU를 사용 |
 | 로컬 dense MVS·NeRF·딥러닝 학습 또는 서버 렌더링 | 선택한 도구의 별도 실행 환경 | 도구별 GPU/CUDA 요구 확인. 이번 데이터 서버 MVP에 포함하지 않음 |
 
 CPU 계산을 먼저 선택하는 것은 이 MVP의 설계 판단이며 실제 계산 속도를 측정했다는 뜻은 아니다. 일반 웹 3D는 사용자 장치의 그래픽 가속을 이용한다. COLMAP의 자체 dense reconstruction은 CUDA 지원 요구를 별도 확인해야 하므로 모든 사진 복원 단계가 CPU만으로 같은 경로를 지원한다고 가정하지 않는다. [WebGL 그래픽 실행](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API), [COLMAP GPU/CUDA 범위](https://colmap.github.io/faq.html#available-functionality-without-gpu-cuda).
 
-현재 서버의 GPU 드라이버 통신 실패를 Docker의 GPU 옵션만으로 해결된 것으로 판단하지 않는다. 먼저 GPU 없는 Rust 서버를 실행하고, 3D 화면은 지원 PC에서 시험한다. 서버 렌더링·GPU 학습을 추가할 때 별도 환경으로 검증한다.
+기존 조사 서버의 GPU 드라이버 통신 실패는 새 A6000 환경의 상태를 뜻하지 않는다. 이전 대상의 장치·드라이버·컨테이너 GPU 노출을 확인한다. Rust 전력 계산은 CPU로, 자산 제작과 선택한 서버 렌더러는 GPU로 검증한다.
 
 ### 16.7 구현 착수 순서와 통과 조건
 
-1. 같은 지역의 사용 가능한 참조 사진과 Higgsfield 계정/제작 연결을 확인한다. 이미지가 반영된 작은 환경과 시설 선택 가능한 프런트 결과의 접근·편집·실행을 확인한다.
+1. 같은 지역의 사용 가능한 참조 사진과 GPU 추론 환경을 확인한다. 이미지가 반영된 작은 환경과 시설 선택 가능한 프런트 결과의 접근·편집·실행을 확인한다.
 2. Docker의 Rust API를 기존 DB와 Redis에 연결한다. 실제 원천 snapshot을 HTTP로 대조하고 캐시 miss/hit/단절에서도 값의 의미가 유지되는지 검사한다.
-3. Higgsfield 제작 프런트에서 대표 시설 ID 선택과 두 관측 시점 변경을 확인하고, WS 연결·새 snapshot·재접속을 검증한다. 원천의 신규 자료 대기 없이도 실제 과거 두 snapshot을 시험 환경에서 순서대로 전달해 연결 동작을 검증할 수 있다. 이를 현재 계측이라고 표시하지 않는다.
-4. 이미지 대비 외형, 좌표·축·scale, 결측·원천 지연, WS와 역사 모드의 충돌 방지, 느린 소비자, 브라우저 FPS를 검사한 뒤 제주 전체로 확대한다.
+3. 선택한 렌더러에서 대표 시설 ID 선택과 두 관측 시점 변경을 확인하고, WS 연결·새 snapshot·재접속을 검증한다. 원천의 신규 자료 대기 없이도 실제 과거 두 snapshot을 시험 환경에서 순서대로 전달해 연결 동작을 검증할 수 있다. 이를 현재 계측이라고 표시하지 않는다.
+4. 이미지 대비 외형, 좌표·축·scale, 결측·원천 지연, WS와 역사 모드의 충돌 방지, 느린 소비자, 선택한 렌더러의 FPS를 검사한 뒤 제주 전체로 확대한다.
 
-현재 완료 범위는 **키의 존재/인증 형태·컨테이너와 Redis 설정·공식 제작 기능 확인 및 기획서 보완**이다. 키의 실제 인증, Higgsfield 이미지 반영/장면·프런트 생성, Docker 빌드, Rust DB 연결, 캐시·WS 통합시험과 GPU 성능 시험은 아직 수행하지 않았다.
+현재 완료 범위는 **키의 존재/인증 형태·컨테이너와 Redis 설정·공식 제작 기능 확인 및 기획서 보완**이다. 키의 실제 인증, 오픈소스 모델 추론/장면·엔진 연결, Docker 빌드, Rust DB 연결, 캐시·WS 통합시험과 GPU 성능 시험은 아직 수행하지 않았다.
 
-## 17. 시뮬레이션 설계: Rust 계산과 Higgsfield 장면 연결
+## 17. 시뮬레이션 설계: Rust 계산과 3D 장면 연결
 
 ### 17.1 역할과 첫 목표
 
-시뮬레이션의 수치 계산은 Rust 백엔드에서 수행하고, Higgsfield가 제작한 장면은 시설 선택·시나리오 입력·결과 표현을 담당한다. 사진은 실제 지역의 외형과 배치를 만드는 입력이다. 전기적 연결·임피던스·부하·운전 제약은 별도의 데이터와 수학 모델에서 얻는다.
+시뮬레이션의 수치 계산은 Rust 백엔드에서 수행하고, 렌더링 엔진의 장면은 시설 선택·시나리오 입력·결과 표현을 담당한다. 사진은 실제 지역의 외형과 배치를 만드는 입력이다. 전기적 연결·임피던스·부하·운전 제약은 별도의 데이터와 수학 모델에서 얻는다.
 
 첫 목표는 **같은 날짜를 기준으로 수요/재생 변화·HVDC 가용성·가상 ESS 조건을 바꿨을 때 지역 수급 결과를 비교하는 것**이다. 실제 과거값 재생은 시뮬레이션의 기준 자료이며, 변경한 조건의 계산 결과는 시나리오로 표시한다. 이 절은 추가 설계 제안이고 시뮬레이터 구현·수치 검증을 완료했다는 뜻은 아니다. G0–G3의 장면/데이터 통합 뒤 계산 기능을 단계별로 연결한다.
 
@@ -548,14 +539,14 @@ e_{t+1}=e_t+\eta_{ch}P_{ch,t}\Delta t-P_{dis,t}\Delta t/\eta_{dis}.
 
 첫 실행 범위는 최대 하루·5분 간격 288구간으로 제안한다. 관측 시각의 구간 정의를 확인한 뒤, 시나리오에서는 구간 내 전력을 일정하게 두는 가정을 기록한다. 이때 Δt=1/12h로 계산한 MWh는 모델 에너지이며 원천 계량 MWh와 자동으로 동일시하지 않는다. 필요한 원천값이 결측이면 해당 실행을 incomplete로 반환하며 누락 구간을 조용히 메우지 않는다.
 
-1. Higgsfield 프런트에서 기준 날짜·수요/재생 배율·HVDC 가용성·ESS 조건을 입력한다.
+1. 렌더러의 화면에서 기준 날짜·수요/재생 배율·HVDC 가용성·ESS 조건을 입력한다.
 2. Rust가 원천 시점/단위/품질과 시나리오 입력을 검증하고 기준/변경 사례를 계산한다. 기존 Redis는 입력 조회 캐시에 사용한다.
 3. 결과에는 실행 ID, 모델/원천 버전, 입력 가정, 관측/시나리오 구분, 시점별 값, 최종 SOC, 수지 잔차와 실행 상태를 포함한다.
 4. 프런트가 결과의 시간축을 재생하고 시설 ID에 맞춰 값·표시를 갱신한다. 실시간 관측 WS가 시나리오 화면을 덮어쓰지 않게 모드를 구분한다.
 
 S1의 짧은 실행은 동일 Rust 서비스의 `POST /api/v1/jeju/simulate`에서 계산·HTTP 결과 반환으로 시작한다. WebSocket은 기존 최신 관측 전달을 유지한다. 장시간 작업이 실제로 생길 때 실행 ID별 진행·완료 알림을 WS에 추가한다. CPU 계산은 I/O와 분리하고 동시 실행을 제한한다. 시뮬레이션용 별도 메시지 브로커·분산 작업 서버를 착수 조건으로 만들지 않는다.
 
-계산 구간·화면 FPS·재생 속도를 분리한다. 5분 모델 결과를 화면에서 1초에 한 구간씩 재생해도 1초 계통 모델로 바뀌지 않는다. 카메라/터빈 표현은 브라우저에서 움직이고, 사진 기반 모델을 매 구간 재생성하지 않는다. 터빈 회전은 실제 RPM 자료가 없으면 시각 표현으로 표시한다.
+계산 구간·화면 FPS·재생 속도를 분리한다. 5분 모델 결과를 화면에서 1초에 한 구간씩 재생해도 1초 계통 모델로 바뀌지 않는다. 카메라/터빈 표현은 렌더러에서 움직이고, 사진 기반 모델을 매 구간 재생성하지 않는다. 터빈 회전은 실제 RPM 자료가 없으면 시각 표현으로 표시한다.
 
 ### 17.5 선로 조류와 최적화의 도입
 
@@ -574,3 +565,68 @@ AC 단계는 P/Q 수지와 전압 크기/각도를 푸는 모델로 확장한다
 - 관측 재생·가정 시나리오·노드별 배분 추정은 화면과 결과 파일에서 구분한다. 모델/입력 버전과 가정을 보존해 같은 입력을 다시 실행할 수 있게 한다.
 
 S0–S2와 첫 운영 최적화는 CPU로 시작한다. 이 설계는 수치 처리시간이나 정확도 시험 결과가 아니다. 서버 GPU보다 우선 필요한 것은 검증한 입력·단위·모델·기준 사례이며, GPU 가속은 측정한 병목과 사용 solver의 지원에 따라 검토한다.
+
+## 18. 오픈소스 Image-to-3D와 A6000·엔터프라이즈 엔진 연동
+
+### 18.1 사용자 요구와 모델 선택
+
+사용자는 Higgsfield를 제외하는 방향과 A6000 두 장을 사용할 환경 이전을 제시했고, Omniverse·Unity·Unreal의 엔터프라이즈 기능 연동을 요구사항에 반영하도록 제안했다. 조사에 따른 추천은 **TRELLIS.2 → GLB/OpenUSD → Omniverse 첫 장면 → Rust API/WS**다. 특정 엔진을 최종 선택하거나 실제 호환성 시험을 완료한 상태는 아니다.
+
+| 후보/경로 | 공식 요구·출력 | 이번 판단 |
+|---|---|---|
+| Microsoft TRELLIS.2 | Linux, NVIDIA VRAM 최소 24GB. PBR 자산·GLB 출력. 모델/코드는 MIT, 일부 의존성은 별도 라이선스 | 개별 설비 생성의 우선 후보. A6000에서 메모리·시간·얇은 구조물 품질 검증 |
+| COLMAP 기반 다중 사진 복원 | 겹치는 여러 방향 사진에서 카메라/형상을 복원. 이후 mesh/texture·경량화·교환 형식 정리 | 실제 지역의 배치/형상을 보존하려는 경로. 현재 참고 사진 2장만으로 완료 불가 |
+| Hunyuan3D-2.1 | 공식 VRAM 안내는 shape 10GB, texture 21GB, 합계 29GB. 자체 Community License | 현재 공개 라이선스의 Territory가 South Korea를 제외하므로 한국 사용의 기본 후보에서 제외 |
+
+근거: [TRELLIS.2 공식 저장소](https://github.com/microsoft/TRELLIS.2), [COLMAP 촬영/복원 지침](https://colmap.github.io/tutorial.html), [Hunyuan3D-2.1 제원](https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1), [Hunyuan3D-2.1 라이선스 원문](https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1/blob/main/LICENSE).
+
+TRELLIS.2의 공식 속도 표는 H100 기준이므로 A6000의 처리시간으로 인용하지 않는다. 처음에는 모델 학습 없이 공개 checkpoint의 추론을 사용하고, 모델/코드 revision·입력 photo ID·seed·해상도·출력 hash·소요시간·최대 VRAM을 기록한다. 단일 사진에서 보이지 않는 부분을 생성한 결과는 추정 자산이다. 물리적 치수와 전력망 연결은 별도 원천으로 정한다.
+
+### 18.2 두 GPU의 배치와 환경 이전
+
+사용자의 A6000은 NVIDIA RTX A6000을 기준으로 계획한다. 공식 제원은 한 장당 48GB다. NVLink 하드웨어의 메모리 확장 지원과 특정 추론 코드의 다중 GPU 지원은 별개이므로, 기본 계획은 독립적인 두 장이다. [NVIDIA RTX A6000 제원](https://www.nvidia.com/en-gb/products/workstations/quadro/rtx-a6000/).
+
+| 실행 대상 | 초기 배치 |
+|---|---|
+| 사진→설비 mesh/PBR 생성 | GPU 0, 자산 한 개씩 생성하는 Docker 배치 작업 |
+| 장면 조립·Omniverse/다른 엔진 렌더링 | GPU 1. 렌더링하지 않는 시간에는 독립적인 추가 자산 생성에 사용 가능 |
+| Rust 수급/ESS·첫 계통 계산·API·Redis | CPU. GPU 추론과 별도 프로세스/컨테이너 |
+
+두 GPU를 한 추론에 묶는 최적화는 첫 자산 시험 뒤 필요할 때만 한다. 96GB를 하나의 VRAM처럼 자동 사용할 수 있다고 가정하지 않는다. GPU 컨테이너는 사용할 장치만 노출하고 VRAM·온도·실행시간을 실제 측정한다. A6000 제원 충족은 CUDA extension 빌드·모든 해상도·모든 장면의 성공 보장이 아니다.
+
+이전 대상에서 GPU 이름/메모리·드라이버·Docker GPU 노출·모델의 PyTorch/CUDA 조합을 확인한다. 모델과 출력 파일은 영속 디렉터리에 보존하고, 매 컨테이너 재시작마다 다운로드하지 않는다. 원천 DB를 기존 서버에 유지할 수 있으며 GPU 작업에는 사진·자산만 전달하면 된다. Rust/렌더러도 다른 호스트로 옮기면 기존 Docker service DNS와 `127.0.0.1` DB 포트가 원격에서 통하지 않으므로 내부망/터널과 실제 연결 주소를 검증한다.
+
+iSCSI는 다른 서버의 initiator에도 네트워크·대상 ACL·필요한 인증이 허용되면 연결할 수 있다. 다만 현재 `/mnt/iscsi`와 `/mnt/iscsi-renewable`은 ext4이며, 작업 세션의 `findmnt`에는 각각 `/dev/sdb`, `/dev/sdc`와 `ro`로 보인다. 이 관측은 다른 호스트의 쓰기 여부나 새 서버의 접근 허용을 확인한 결과가 아니다. 같은 LUN의 ext4를 두 서버가 동시에 쓰지 않으며, 한쪽을 읽기 전용으로 붙여도 다른 쪽이 쓰는 동안 안전한 공유 파일시스템이 되는 것은 아니다. [iSCSI ACL·인증](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/managing_storage_devices/configuring-an-iscsi-target_managing-storage-devices), [ext4 공유 디스크 문제 사례](https://access.redhat.com/solutions/410173).
+
+첫 이전안은 iSCSI·DB를 기존 서버에 유지하고 A6000 서버가 검증된 내부망/터널의 DB 또는 Rust API로 조회하는 방식이다. 사진·GLB/USD 같은 일반 파일만 복사하거나 별도 파일 공유로 전달한다. 저장소 자체를 옮겨야 하면 관련 DB/수집기를 정상 종료하고 기존 마운트·세션을 해제한 뒤 새 호스트에 연결하는 별도 이전 작업으로 수행한다. 이 검토에서는 연결·마운트·서비스를 변경하지 않았다.
+
+### 18.3 호환성 요구사항의 표현
+
+기획서에 사용할 문구:
+
+> 생성·복원한 3D 자산은 glTF 2.0/GLB와 OpenUSD 교환 경로를 제공한다. Omniverse·Unity·Unreal Engine의 지정 버전에서 형상·PBR 재질·단위·계층·시설 ID와 Rust HTTP/WebSocket 연동을 검증한다. 엔터프라이즈 기능은 선택한 엔진의 지원 범위와 별도 기능별 통과 기준을 따른다.
+
+“모든 엔터프라이즈 기능과 완벽하게 호환”은 현재 사실이나 완료 기준으로 쓰지 않는다. 자산 import와 다중 사용자 편집·권한·원격 렌더링·운영 데이터 연결의 동작은 서로 다른 검증이다. NVIDIA Asset Converter에도 재질/스켈레톤 변환 제한이 있고, Epic 문서는 glTF가 모든 엔진 기능을 기본 지원하지 않음을 설명한다. [Omniverse 변환 범위](https://docs.omniverse.nvidia.com/extensions/latest/ext_asset-converter.html), [Unreal glTF 지원 범위](https://dev.epicgames.com/documentation/unreal-engine/gltf-file-format-support-in-unreal-engine).
+
+### 18.4 엔진별 실제 연결 경로
+
+| 대상 | 자산 경로 | 별도 구현·검증 |
+|---|---|---|
+| Omniverse | GLB→Asset Converter→USD, 장면/시설을 prim으로 구성 | 단위·axis·재질·prim↔시설 ID, Kit 실행부의 Rust API/WS 연결. 첫 연동 대상으로 추천 |
+| Unity | GLB→공식 glTFast import | 선택한 Unity/URP/HDRP 조합의 재질·node·시설 선택, C#에서 Rust 데이터 연결 |
+| Unreal Engine | GLB import 또는 USD Stage/Importer | plugin·packaged runtime·재질·scale·Actor↔시설 ID, C++/Blueprint 데이터 연결. USD 문서는 현재 Beta로 표시 |
+
+근거: [Omniverse Asset Converter](https://docs.omniverse.nvidia.com/extensions/latest/ext_asset-converter.html), [Unity glTFast](https://github.com/Unity-Technologies/com.unity.cloud.gltfast/blob/main/Packages/com.unity.cloud.gltfast/Documentation~/index.md), [Unity 재질/확장 기능 표](https://github.com/Unity-Technologies/com.unity.cloud.gltfast/blob/main/Packages/com.unity.cloud.gltfast/Documentation~/features.md), [Unreal USD](https://dev.epicgames.com/documentation/en-us/unreal-engine/universal-scene-description-in-unreal-engine).
+
+먼저 한 엔진에서 실제 데이터 연결을 완료하고, 다른 엔진에서는 같은 자산의 import·표현·ID 보존을 점검한다. 전 엔진에 동일한 운영 앱을 만드는 것은 별도 범위다. 협업/SSO/역할 권한/배포 지원 등의 엔터프라이즈 기능은 실제 사용할 항목을 선택한 뒤 구현하며, 자산 파일의 형식 지원이 서비스 사용권을 제공하는 것은 아니다.
+
+### 18.5 교환 자산과 합격 기준
+
+- 기본 교환 자산은 mesh+PBR metallic/roughness, base color·normal·roughness·metallic·필요 시 alpha의 PNG/JPEG 텍스처다. 초기 GLB는 필수 압축/전용 재질 확장을 피하고, TRELLIS.2 예제의 WebP 확장·4096 texture·100만 면을 제품 기본값으로 그대로 적용하지 않는다.
+- meter 단위와 up-axis·forward-axis를 manifest에 명시하고 엔진별 변환을 기록한다. WGS84/ECEF/ENU 기준은 7.1절을 유지한다. 알려진 치수의 시험 자산에서 scale 오차 1% 이하를 목표로 하고, 독립 GIS 기준점 정합을 별도로 검사한다.
+- `facility_id`를 GLB extras/USD customData와 별도 manifest에 함께 보존한다. importer가 metadata를 생략하면 manifest로 대응한다. 시설·회전자 같은 선택/운동 단위가 합쳐지지 않는지 확인한다.
+- 충돌 형상·rig/pivot·LOD·UV·lightmap·투명/발광·엔진 전용 셰이더는 필요한 항목을 별도 정리한다. 형상 생성만으로 물리 속성이나 전기적 bus/branch가 생기지 않는다.
+- 대표 시설의 앞/옆/뒤 시점, 1m 기준체, 시설 선택, 재질/텍스처 누락, 모델 node 수, 두 실제 시점의 API 값·WS 재접속을 검사한다. 엔진·plugin·GPU driver 버전을 기록하고 통과한 조합만 지원 목록에 올린다.
+- Gaussian Splatting을 추가한다면 별도의 표현/renderer 검증을 수행한다. GSplat을 GLB mesh와 동일한 충돌·선택·재질 호환 자산으로 취급하지 않는다.
+
+현재 완료 범위는 공식 모델/제원/라이선스/엔진 문서 조사와 설계 변경이다. 새 GPU 서버 이전, 모델 다운로드·추론·GLB/USD 변환, 세 엔진 실행·엔터프라이즈 기능 시험은 아직 수행하지 않았다.

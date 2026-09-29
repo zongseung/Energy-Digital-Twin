@@ -332,7 +332,9 @@ Higgsfield 생성/export, 다중 시점 복원, Bevy 앱 실행은 아직 미수
 
 외부 자료 상세 페이지 일부는 조회 오류가 있어 원본 제공 형식·권한의 근거로 채택하지 않았다. 오래된 3D 데이터 다운로드 예제나 전국 서비스 안내만으로 현재 API 가용성·제주 전역 실사 품질을 확정하지 않는다.
 
-## 15. 최신 요구 반영: 이미지 기반 Higgsfield 프런트와 Rust 실행 구성
+## 15. 이전 요구 검토: 이미지 기반 Higgsfield 프런트와 Rust 실행 구성
+
+이 절은 방향 변경 전의 검토 기록이다. 현재 모델·렌더러 방향은 16절과 연결된 기획서 v0.3을 따른다.
 
 사용자 수정에 따라 기본안은 **실제 제주 사진을 반영한 Higgsfield 3D 환경·프런트 + Docker의 Rust 백엔드 + Redis 캐시 + WebSocket**이다. VWorld는 위치·높이·배치의 보조 자료로 활용한다. 앞 절의 VWorld 주 화면 구성은 비교 조사였으며 현재 기본안을 대체하지 않는다. [현재 기획서](jeju_power_grid_digital_twin_design.md) 7절·14절·16절에 제작/실행 역할과 완료 기준을 반영했다.
 
@@ -343,3 +345,14 @@ Higgsfield는 [Jutsu의 editable scene·GLB](https://higgsfield.ai/blog/higgsfie
 기존 Redis가 256MiB·`allkeys-lru`로 실행 중임을 읽기 전용 확인했다. Rust 프로젝트/Compose 파일은 아직 없으며 현재 서버의 NVIDIA 드라이버 통신은 실패한다. API·캐시·WS와 첫 계통 계산은 CPU로 시작하고 3D 렌더링은 접속 PC에서 수행하는 구성이다. 로컬 dense MVS·딥러닝 학습·서버 렌더링은 GPU 요구를 따로 검증한다.
 
 이 검토에서 확인한 것은 구성의 구현 경로와 남은 입력/통합시험 조건이다. Higgsfield 생성·Docker 빌드·Rust DB/Redis 연결·WebSocket 갱신·실제 렌더링의 성공을 확인한 단계는 아니다.
+
+## 16. 후속 방향 변경: 오픈소스 Image-to-3D·A6000 두 장·엔진 연동
+
+사용자가 Higgsfield를 제외하고 오픈소스 모델을 사용하며 A6000 두 장의 환경으로 이전하는 방향을 제시했다. [현재 기획서](jeju_power_grid_digital_twin_design.md) 18절과 [구현 계획](jeju_power_grid_implementation_plan.md)에 모델·GPU 배치·엔진별 검증 조건을 반영했다. 설치된 Higgsfield 클라이언트의 website-builder 안내도 image-to-3D·mesh generation을 제공하지 않는다고 명시하므로, 기존 기능 소개만으로 현재 도구에서 구현 가능하다고 판단하지 않는다.
+
+- 개별 설비는 MIT 모델인 [TRELLIS.2](https://github.com/microsoft/TRELLIS.2)를 우선 검증한다. 공식 최소 VRAM은 24GB이고, [RTX A6000](https://www.nvidia.com/en-gb/products/workstations/quadro/rtx-a6000/)은 장당 48GB다. 이 제원 비교는 실제 추론 성공이나 처리시간 측정을 뜻하지 않는다. [Hunyuan3D-2.1의 현재 라이선스](https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1/blob/main/LICENSE)는 South Korea를 Territory에서 제외하므로 기본 후보로 삼지 않는다.
+- GPU 0은 사진→mesh/PBR 제작, GPU 1은 렌더링으로 시작한다. Rust API·Redis·WebSocket·첫 수급/ESS 계산은 CPU다. 두 장의 VRAM을 단일 96GB처럼 자동 이용한다고 가정하지 않는다.
+- 실제 지역 복원은 겹치는 여러 방향의 사진과 GIS/DEM 정합이 필요하다. 현재 배너 사진 두 장은 참고 자료이며, 단일 사진 생성의 보이지 않는 형상과 전기적 계통 연결은 실측 자료가 아니다.
+- GLB/OpenUSD 교환과 Omniverse 우선 연동을 추천하며 Unity/Unreal의 지정 버전에서 자산 import를 확인한다. 모든 엔터프라이즈 기능과 완벽한 호환을 약속하지 않고 재질·단위·시설 ID·HTTP/WS 및 실제 사용할 기능을 따로 검증한다.
+
+이번 변경은 조사·설계·구현 계획까지다. 새 서버의 GPU 접근, 모델 설치·추론, GLB/USD 변환, 렌더링 엔진 실행, Rust 제품 코드는 아직 검증하거나 구현하지 않았다. 기존 DB/Redis·원천 데이터·키 값은 변경하지 않았다.

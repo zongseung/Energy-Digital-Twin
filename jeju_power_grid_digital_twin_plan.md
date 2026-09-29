@@ -1,6 +1,6 @@
 # 제주 전력망 디지털 트윈 구축 기획서
 
-> 후속 설계: [Rust·제주 실사 사진 기반 대화형 3D 기획서 v0.2](jeju_power_grid_digital_twin_design.md). 아래 v0.1은 초기 기획이며, 현재 합의한 범위와 구현 조건은 v0.2를 기준으로 검토한다.
+> 후속 설계: [Rust·제주 실사 사진 기반 대화형 3D 기획서 v0.3](jeju_power_grid_digital_twin_design.md). 아래 v0.1은 초기 기획이며, 현재 요구와 구현 조건은 v0.3을 기준으로 검토한다.
 
 ## GIS·전력계통 시뮬레이션·3D 시각화·Higgsfield 기반 생성형 영상 연계
 
