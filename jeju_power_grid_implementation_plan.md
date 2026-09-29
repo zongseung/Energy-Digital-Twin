@@ -120,6 +120,8 @@
 
 **등록 API 본수집 (2026-09-30):** `registered_api/20260930/`에 ASOS 2025년 4개 지점 35,040행과 건축물대장 217,844행을 저장했다. 양수 높이 115,226행 중 250m 초과 4행(최대 4,970m)은 검토 대상이며 실제 GIS 보완으로 세지 않는다. JSONL 190개 파일 391,938,526바이트·2,309페이지를 오프라인 전수 검증했고 준비 수집 회귀 검사 14개가 통과했다. 지상 관측의 풍속/풍향 공란 37시간과 원문 QC를 유지했다. [상세 품질·범위 기록](jeju_power_grid_data_and_modeling_review.md#20-등록-키를-이용한-asos건축hub-본수집--2026-09-30).
 
+**잔여 입력 점검 (2026-09-30):** 지도 건물과 건축HUB를 필지·도로명주소로 전수 대조한 결과, 양수·250m 이하 높이의 주소 일치 후보는 48,648개다. 실제 GIS 높이 보완 건수는 미확정이므로 위 체크 항목은 유지한다. KPX 전국 상태추정의 제주 코드 대응, GIST 원본 CSV, 실제 R/X/B·P/Q 및 설비 사진/치수도 아직 미확보다. [검증 방법과 세부 건수](jeju_power_grid_data_and_modeling_review.md#21-잔여-데이터의-연결-가능성-점검--2026-09-30).
+
 ## Task 1: Rust product and Docker runtime on the GPU server
 
 **Files:** Cargo 파일, `src/main.rs`, `src/lib.rs`, `src/api.rs`, Docker/ignore/env 파일, `README.md`.
