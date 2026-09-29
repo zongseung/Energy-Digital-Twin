@@ -20,6 +20,12 @@ use std::{env, net::SocketAddr, process::ExitCode, sync::Arc, time::Duration as 
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, watch};
 
 const SELECT_STATE: &str = "SELECT ts AT TIME ZONE 'Asia/Seoul' AS observed_at, demand_mw, supply_mw, wind_mw, solar_mw, renewable_total_mw FROM public.jeju_supply_demand";
+const SELECT_TIMELINE: &str = "
+    SELECT ts AT TIME ZONE 'Asia/Seoul'
+    FROM public.jeju_supply_demand
+    WHERE ts >= ($1::timestamptz AT TIME ZONE 'Asia/Seoul')
+      AND ts < ($2::timestamptz AT TIME ZONE 'Asia/Seoul')
+    ORDER BY ts LIMIT 2017";
 
 #[derive(Clone)]
 struct AppState {
@@ -163,7 +169,11 @@ async fn health(State(state): State<AppState>) -> Response {
     } else {
         StatusCode::SERVICE_UNAVAILABLE
     };
-    (status, Json(json!({"status": if status == StatusCode::OK { "ready" } else { "unavailable" }, "hub_ready":hub.is_ok(), "demand_ready":demand.is_ok()}))).into_response()
+    let body = json!({
+        "status": if status == StatusCode::OK { "ready" } else { "unavailable" },
+        "hub_ready": hub.is_ok(), "demand_ready": demand.is_ok()
+    });
+    (status, Json(body)).into_response()
 }
 
 async fn read_state(
@@ -243,8 +253,16 @@ async fn timeline(
 ) -> Result<Json<Vec<DateTime<Utc>>>, ApiError> {
     let Query(query) = query.map_err(|_| invalid("start_and_end_are_required"))?;
     let (start, end) = range(&query.start, &query.end).map_err(invalid)?;
-    let values: Vec<DateTime<Utc>> = source_rows(&state.demand, sqlx::query("SELECT ts AT TIME ZONE 'Asia/Seoul' FROM public.jeju_supply_demand WHERE ts >= ($1::timestamptz AT TIME ZONE 'Asia/Seoul') AND ts < ($2::timestamptz AT TIME ZONE 'Asia/Seoul') ORDER BY ts LIMIT 2017")
-        .bind(start).bind(end)).await?.into_iter().map(|row| row.try_get(0)).collect::<Result<_, _>>().map_err(unavailable)?;
+    let rows = source_rows(
+        &state.demand,
+        sqlx::query(SELECT_TIMELINE).bind(start).bind(end),
+    )
+    .await?;
+    let values: Vec<DateTime<Utc>> = rows
+        .into_iter()
+        .map(|row| row.try_get(0))
+        .collect::<Result<_, _>>()
+        .map_err(unavailable)?;
     if values.len() > 2016 {
         return Err(invalid("too_many_observations"));
     }

@@ -103,7 +103,7 @@ cargo test --manifest-path bridge/Cargo.toml --locked -- --ignored --nocapture
 
 ## 제주 지리 데이터 수집
 
-Rust 비동기 CLI `collect_geography`가 기존 Hub GIS·DEM을 추출하고 루트 `.env`의 `vworld_key`로 VWorld 도로명주소 건물·해안선·시군구 경계를 받는다. API·DB·DEM 작업은 병렬로 실행하며 API 페이지 요청은 순서대로 처리한다. GPU는 필요 없다. 결과는 **`/mnt/iscsi/energy-digital-twin/geography/jeju`**에 저장한다.
+Rust 비동기 CLI `collect_geography`가 기존 Hub GIS·DEM을 추출하고 루트 `.env`의 `vworld_key`로 VWorld 도로명주소 건물·건물통합정보·해안선·시군구 경계를 받는다. API·DB·DEM 작업은 병렬로 실행하며 API 페이지 요청은 순서대로 처리한다. GPU는 필요 없다. 결과는 **`/mnt/iscsi/energy-digital-twin/geography/jeju`**에 저장한다.
 
 프로젝트 루트에서 실행한다. 기존 `bridge/.env`의 `HUB_DATABASE_URL`을 사용하되 호스트 실행을 위해 DB 주소를 `127.0.0.1:5437`로 연결한다. DEM 처리는 이미 설치된 `/mnt/nvme/Energy-hub/.venv/bin/python`의 rasterio를 호출한다. 새 서버에서는 해당 도구와 원천 DEM 경로를 먼저 준비해야 한다. 대상 폴더는 현재 사용자에게 쓰기 권한이 있어야 한다.
 
@@ -111,6 +111,8 @@ Rust 비동기 CLI `collect_geography`가 기존 Hub GIS·DEM을 추출하고 �
 cargo build --manifest-path bridge/Cargo.toml --release --locked --bin collect_geography
 flock -n /mnt/iscsi/energy-digital-twin/geography/jeju/.collector.lock \
   ./bridge/target/release/collect_geography
+flock -n /mnt/iscsi/energy-digital-twin/geography/jeju/.islands-collector.lock \
+  ./bridge/target/release/collect_geography --islands
 ```
 
 | 파일 | 자료·출처 |
@@ -122,12 +124,27 @@ flock -n /mnt/iscsi/energy-digital-twin/geography/jeju/.collector.lock \
 | `coastline.geojsonl` | VWorld `LT_L_TOISDEPCNTAH` 해안선 |
 | `vworld_admin_boundary.geojsonl` | VWorld `LT_C_ADSIGG_INFO` 시군구 경계 |
 | `buildings.geojsonl` | VWorld `LT_C_SPBD` 건물 footprint·주소·층수 |
+| `building_info.geojsonl` | VWorld `LT_C_BLDGINFO` 건물 형상·높이·용도·대장 속성 |
 | `dem_jeju.tif` | 기존 `dem_korea.tif`의 제주 GeoTIFF 부분 추출 |
 
-범위는 경도 126–127°, 위도 33–33.7°, CRS는 EPSG:4326이다. Hub는 bbox 후보를 선택하고 전체 geometry를 보존하므로 범위를 벗어난 geometry도 포함될 수 있다. 전력 선로는 제주 속성도 포함해 본토 연결을 유지한다. 건물은 API 면적 제한에 맞춘 0.03° 격자 816개에서 모든 페이지를 받고 원천 ID로 중복 제거한다. `.geojsonl`은 줄마다 GeoJSON Feature 하나인 UTF-8 JSON Lines이며 FeatureCollection 전체 JSON이나 RFC 8142의 RS 구분 형식이 아니다.
+기본 범위는 경도 126–127°, 위도 33–33.7°, CRS는 EPSG:4326이다. `--islands`는 경도 126.2–126.7°, 위도 33.7–34.05°를 `supplements/northern_islands/`에 별도 저장한다. 기존 공식 시군구 경계에 포함된 북쪽 부속 도서를 보완하는 범위다. Hub는 bbox 후보를 선택하고 전체 geometry를 보존하므로 범위를 벗어난 geometry도 포함될 수 있다. 북쪽의 기존 Hub 경계 후보에는 완도·신안도 포함되어 있으므로 장면 준비에서 VWorld의 제주 경계로 실제 영역을 필터링한다. 전력 선로는 제주 속성도 포함해 본토 연결을 유지하며 두 구역 파일을 합칠 때 원천 ID로 중복 제거한다. 건물 두 레이어는 API 면적 제한에 맞춘 기본 816개·북쪽 204개 격자에서 모든 페이지를 받고 각 레이어 안에서 원천 ID로 중복 제거한다. `.geojsonl`은 줄마다 GeoJSON Feature 하나인 UTF-8 JSON Lines이며 FeatureCollection 전체 JSON이나 RFC 8142의 RS 구분 형식이 아니다.
 
-각 파일의 `.metadata.json`에 출처·수집 시각·건수·바이트·SHA-256·품질 정보를 기록하고, 11종 전체 성공 시에만 `manifest.json`의 `complete`가 true다. `.part`는 미완료 결과다. 완료 metadata와 해시가 일치하는 자료는 재사용한다. 완료 metadata가 없는 파일은 다시 생성하고, 기존 완료 파일의 해시가 다르면 오류로 종료한다. `vworld_pages/`의 검증된 API 페이지는 재시작 시 재사용한다. 페이지의 총건수나 ID가 충돌하면 해당 격자 checkpoint를 지우고 실패하며, 같은 명령을 다시 실행하면 그 구역을 새로 받는다. 원천 변경을 자동 추적하는 주기적 수집기는 아니다.
+각 파일의 `.metadata.json`에 출처·수집 시각·원천 ID·건수·바이트·SHA-256·품질 정보를 기록한다. 각 구역의 구성된 12종 자료가 모두 성공해야 `manifest.json`의 `complete`가 true다. 제주 관련 모든 종류의 데이터나 3D 복원 완료를 뜻하지 않는다. `.part`는 미완료 결과다. 완료 metadata와 해시가 일치하는 자료는 재사용한다. 완료 metadata가 없는 파일은 다시 생성하고, 기존 완료 파일의 해시가 다르면 오류로 종료한다. `vworld_pages/`의 검증된 API 페이지는 재시작 시 재사용한다. 페이지의 총건수나 ID가 충돌하면 해당 격자 checkpoint를 지우고 실패하며, 같은 명령을 다시 실행하면 그 구역을 새로 받는다. 원천 변경을 자동 추적하는 주기적 수집기는 아니다.
 
-기존 Hub 행정경계는 2018년의 `39010/39020`을 사용한다. API 경계를 별도 보존하며 API 수집일을 자료 기준일로 단정하지 않는다. 건물 층수는 실측 높이가 아니고 DEM의 수직 기준·사용 조건은 추가 확인이 필요하다. 발전/태양광 테이블의 중복 시설 여부와 선로의 전기적 연결은 별도 검증 대상이다. 실제 지역 사진·텍스처·측량 수준 3D·선로별 전력 모델은 이 수집에 포함되지 않는다.
+기존 Hub 제주 행정경계는 2018년의 `39010/39020`을 사용한다. API 경계를 별도 보존하며 API 수집일을 자료 기준일로 단정하지 않는다. 주소 건물의 층수는 실측 높이가 아니다. 건물통합정보의 `height`도 현장 측량을 별도 검증한 값은 아니며 원문을 그대로 보존한다. 유한한 양수 높이만 `positive_height_count`에 집계하고 0·누락·음수·비유한값은 높이 미확보로 처리한다. 서로 다른 두 건물 레이어의 ID나 배열 순서를 같은 시설로 간주하지 않고 GPU 준비 단계에서 형상·위치로 대조한다. DEM의 수직 기준·사용 조건, 발전/태양광 중복 시설과 선로의 전기적 연결은 추가 확인 대상이다.
+
+2026-09-29 추가 수집: 기본 구역 건물통합정보 463,524개 중 양수 높이 117,008개, 북쪽 주소 건물 1,621개·건물통합정보 2,333개 중 양수 높이 573개, 도로 36개·토지피복 669개·해안선 244개·DEM 1,801×1,260 픽셀. 양수 높이 여부가 자료의 최신성이나 측량 정확성을 보장하지 않는다.
+
+### 현장 참조 사진
+
+`reference_photos/`에 [신창풍차해안도로](https://www.visitjeju.net/kr/detail/view?contentsid=CNTS_200000000007676), [신창~차귀해안도로](https://www.visitjeju.net/kr/detail/view?contentsid=CONT_000000000500403), [추자도](https://www.visitjeju.net/kr/detail/view?contentsid=CNTS_000000000018441)의 공식 장소 갤러리 사진을 각각 12장씩 저장했다. 페이지의 해당 장소 `photo` 배열만 선택하고 사진 ID로 중복 제거한 뒤 받는다. 리뷰·주변 장소 사진을 해당 장소 사진으로 섞지 않는다. 기존 Python 환경의 Pillow로 파일을 검증하며 네트워크/저장은 `asyncio.to_thread`로 최대 3개 병렬 실행한다. 키는 필요 없다.
+
+```bash
+/mnt/nvme/Energy-hub/.venv/bin/python bridge/scripts/collect_reference_photos.py --check
+flock -n /mnt/iscsi/energy-digital-twin/geography/jeju/.photos-collector.lock \
+  /mnt/nvme/Energy-hub/.venv/bin/python bridge/scripts/collect_reference_photos.py
+```
+
+사진별 원본 URL·출처 페이지·크기·해시·수집 시각을 보존한다. 대표 사진 3장을 육안 확인했고 36장 모두 이미지 파일 검증을 통과했다. 기존 파일은 해시 대조 후 재사용한다. 현재 참고용이며 사진별 사용 조건·촬영 시각·카메라 위치·겹치는 촬영 세트는 확인되지 않았다. 텍스처나 생성 모델 입력에 사용하기 전에 조건과 적합성을 확인한다. 사진 갤러리 표본은 제주 전체 현장 촬영이나 정밀 다중 시점 복원 세트를 대신하지 않는다.
 
 정적 지리 파일은 GPU 장면 준비 단계에서 파일 전송 후 해시를 대조한다. 이 CLI가 만든 파일은 현재 브릿지 HTTP/WS에 자동 공개되지 않는다. 실시간 관측은 기존 브릿지 HTTP/WS를 사용한다.

@@ -8,7 +8,10 @@ from rasterio.windows import Window, from_bounds
 with rasterio.open(sys.argv[1]) as source:
     if source.crs.to_epsg() != 4326:
         raise ValueError("unexpected DEM CRS")
-    window = from_bounds(126, 33, 127, 33.7, source.transform)
+    bounds = list(map(float, sys.argv[3:7]))
+    if len(bounds) != 4 or bounds[0] >= bounds[2] or bounds[1] >= bounds[3]:
+        raise ValueError("invalid DEM bounds")
+    window = from_bounds(*bounds, source.transform)
     window = window.round_offsets().round_lengths().intersection(
         Window(0, 0, source.width, source.height)
     )

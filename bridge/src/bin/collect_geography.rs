@@ -6,7 +6,14 @@ use sqlx::{
     Row,
     postgres::{PgConnectOptions, PgPoolOptions},
 };
-use std::{collections::HashSet, env, path::Path, process::ExitCode, str::FromStr, time::Duration};
+use std::{
+    collections::HashSet,
+    env,
+    path::{Path, PathBuf},
+    process::ExitCode,
+    str::FromStr,
+    time::Duration,
+};
 use tokio::{
     fs,
     io::{AsyncReadExt, AsyncWriteExt, BufWriter},
@@ -15,7 +22,14 @@ use tokio::{
 
 const ROOT: &str = "/mnt/iscsi/energy-digital-twin/geography/jeju";
 const BBOX: [f64; 4] = [126.0, 33.0, 127.0, 33.7];
+const ISLAND_BBOX: [f64; 4] = [126.2, 33.7, 126.7, 34.05];
 const API: &str = "https://api.vworld.kr/req/data";
+const LAYERS: [(&str, &str); 4] = [
+    ("coastline.geojsonl", "LT_L_TOISDEPCNTAH"),
+    ("vworld_admin_boundary.geojsonl", "LT_C_ADSIGG_INFO"),
+    ("buildings.geojsonl", "LT_C_SPBD"),
+    ("building_info.geojsonl", "LT_C_BLDGINFO"),
+];
 const TABLES: [&str; 7] = [
     "admin_boundary",
     "road",
@@ -27,15 +41,53 @@ const TABLES: [&str; 7] = [
 ];
 type Result<T> = std::result::Result<T, &'static str>;
 
-fn cells() -> Vec<[f64; 4]> {
-    (0..34)
+struct Collection {
+    root: PathBuf,
+    bbox: [f64; 4],
+}
+
+impl Collection {
+    fn from_args(args: &[String]) -> Result<Self> {
+        let (root, bbox) = match args {
+            [] => (ROOT.to_owned(), BBOX),
+            [flag] if flag == "--islands" => {
+                (format!("{ROOT}/supplements/northern_islands"), ISLAND_BBOX)
+            }
+            _ => return Err("usage: collect_geography [--islands]"),
+        };
+        Ok(Self {
+            root: root.into(),
+            bbox,
+        })
+    }
+}
+
+#[derive(Default)]
+struct Pagination {
+    expected: Option<(u64, u64)>,
+    count: u64,
+    ids: HashSet<String>,
+}
+
+fn height(feature: &Value) -> Option<f64> {
+    let value = &feature["properties"]["height"];
+    value
+        .as_f64()
+        .or_else(|| value.as_str()?.parse().ok())
+        .filter(|value| value.is_finite() && *value > 0.0)
+}
+
+fn cells([west, south, east, north]: [f64; 4]) -> Vec<[f64; 4]> {
+    let columns = ((east - west) / 0.03).ceil() as u32;
+    let rows = ((north - south) / 0.03).ceil() as u32;
+    (0..columns)
         .flat_map(|x| {
-            (0..24).map(move |y| {
+            (0..rows).map(move |y| {
                 [
-                    126.0 + f64::from(x * 3) / 100.0,
-                    33.0 + f64::from(y * 3) / 100.0,
-                    (126.0 + f64::from((x + 1) * 3) / 100.0).min(127.0),
-                    (33.0 + f64::from((y + 1) * 3) / 100.0).min(33.7),
+                    west + f64::from(x * 3) / 100.0,
+                    south + f64::from(y * 3) / 100.0,
+                    (west + f64::from((x + 1) * 3) / 100.0).min(east),
+                    (south + f64::from((y + 1) * 3) / 100.0).min(north),
                 ]
             })
         })
@@ -135,7 +187,8 @@ async fn json_file(path: &Path, data: &Value) -> Result<()> {
         .map_err(|_| "metadata_publish_failed")
 }
 
-async fn existing(root: &Path, name: &str) -> Result<bool> {
+async fn existing(collection: &Collection, name: &str) -> Result<bool> {
+    let root = &collection.root;
     let path = root.join(name);
     let meta = root.join(format!("{name}.metadata.json"));
     if !fs::try_exists(&path)
@@ -152,7 +205,7 @@ async fn existing(root: &Path, name: &str) -> Result<bool> {
     };
     let value: Value = serde_json::from_slice(&bytes).map_err(|_| "dataset_metadata_invalid")?;
     if value["complete"] != true
-        || value["bbox"] != json!(BBOX)
+        || value["bbox"] != json!(collection.bbox)
         || value["schema_version"] != 1
         || value["sha256"] != digest(&path).await?
     {
@@ -162,11 +215,11 @@ async fn existing(root: &Path, name: &str) -> Result<bool> {
     Ok(true)
 }
 
-async fn finish(name: &str, mut metadata: Value) -> Result<()> {
-    let root = Path::new(ROOT);
+async fn finish(collection: &Collection, name: &str, mut metadata: Value) -> Result<()> {
+    let root = &collection.root;
     let part = root.join(format!("{name}.part"));
     metadata["schema_version"] = json!(1);
-    metadata["bbox"] = json!(BBOX);
+    metadata["bbox"] = json!(collection.bbox);
     metadata["crs"] = json!("EPSG:4326");
     metadata["complete"] = json!(true);
     metadata["collected_at"] = json!(Utc::now());
@@ -208,7 +261,7 @@ async fn flush(mut writer: BufWriter<fs::File>) -> Result<()> {
         .map_err(|_| "dataset_sync_failed")
 }
 
-async fn export_db() -> Result<()> {
+async fn export_db(collection: &Collection) -> Result<()> {
     let url = setting("bridge/.env", "HUB_DATABASE_URL")?;
     let options = PgConnectOptions::from_str(&url)
         .map_err(|_| "invalid_hub_configuration")?
@@ -231,7 +284,7 @@ async fn export_db() -> Result<()> {
         .connect_lazy_with(options);
     for table in TABLES {
         let name = format!("{table}.geojsonl");
-        if existing(Path::new(ROOT), &name).await? {
+        if existing(collection, &name).await? {
             continue;
         }
         let mut connection = pool.acquire().await.map_err(|_| "hub_unavailable")?;
@@ -239,16 +292,28 @@ async fn export_db() -> Result<()> {
         // Bounding-box candidates retain full geometry. Expensive clipping belongs
         // to GPU-side scene preparation, not the source collection transaction.
         let filter = if table == "power_line" {
-            "(p.sido = '제주특별자치도' OR p.geom && ST_MakeEnvelope(126,33,127,33.7,4326))"
+            "(p.sido = '제주특별자치도' OR p.geom && ST_MakeEnvelope($1,$2,$3,$4,4326))"
         } else {
-            "p.geom && ST_MakeEnvelope(126,33,127,33.7,4326)"
+            "p.geom && ST_MakeEnvelope($1,$2,$3,$4,4326)"
         };
         let sql = format!(
-            "SELECT jsonb_build_object('type','Feature','id','hub:{table}:' || p.id,'geometry',ST_AsGeoJSON(p.geom)::jsonb,'properties',(to_jsonb(p)-'geom') || jsonb_build_object('source_table','public.{table}','source_id',p.id,'coordinate_system','EPSG:4326')) AS feature FROM public.{table} p WHERE p.geom IS NOT NULL AND {filter} ORDER BY p.id"
+            "SELECT jsonb_build_object(
+                'type','Feature', 'id','hub:{table}:' || p.id,
+                'geometry',ST_AsGeoJSON(p.geom)::jsonb,
+                'properties',(to_jsonb(p)-'geom') || jsonb_build_object(
+                    'source_table','public.{table}', 'source_id',p.id,
+                    'coordinate_system','EPSG:4326')) AS feature
+             FROM public.{table} p WHERE p.geom IS NOT NULL AND {filter} ORDER BY p.id"
         );
-        let mut rows = sqlx::query(&sql).fetch(&mut *connection);
+        let [west, south, east, north] = collection.bbox;
+        let mut rows = sqlx::query(&sql)
+            .bind(west)
+            .bind(south)
+            .bind(east)
+            .bind(north)
+            .fetch(&mut *connection);
         let mut writer = BufWriter::new(
-            fs::File::create(Path::new(ROOT).join(format!("{name}.part")))
+            fs::File::create(collection.root.join(format!("{name}.part")))
                 .await
                 .map_err(|_| "dataset_write_failed")?,
         );
@@ -264,10 +329,15 @@ async fn export_db() -> Result<()> {
             count += 1;
         }
         flush(writer).await?;
-        finish(&name, json!({"feature_count":count,"source":format!("energy-hub-db.public.{table}"),"format":"GeoJSONL",
-            "selection":"bbox_overlap_full_geometry","source_dates":"preserved_in_properties","license":"see_source_dataset",
-            "quality_flags": if table == "admin_boundary" {vec!["historical_boundary_codes_preserved"]} else {vec![]}
-        })).await?;
+        let metadata = json!({
+            "feature_count": count, "source": format!("energy-hub-db.public.{table}"),
+            "format": "GeoJSONL", "selection": "bbox_overlap_full_geometry",
+            "source_dates": "preserved_in_properties", "license": "see_source_dataset",
+            "quality_flags": if table == "admin_boundary" {
+                vec!["historical_boundary_codes_preserved"]
+            } else { vec![] }
+        });
+        finish(collection, &name, metadata).await?;
     }
     let _ = tokio::time::timeout(Duration::from_secs(3), pool.close()).await;
     Ok(())
@@ -330,24 +400,22 @@ async fn checked_page<'a>(
     cell: usize,
     payload: &'a Value,
     index: u64,
-    expected: &mut Option<(u64, u64)>,
-    raw_count: &mut u64,
-    cell_ids: &mut HashSet<String>,
+    progress: &mut Pagination,
 ) -> Result<(&'a [Value], u64)> {
     let result = (|| {
         let (features, total, pages) = page(payload, index)?;
-        if expected.is_some_and(|old| old != (total, pages)) {
+        if progress.expected.is_some_and(|old| old != (total, pages)) {
             return Err("vworld_total_changed_during_pagination");
         }
-        *expected = Some((total, pages));
-        *raw_count += features.len() as u64;
+        progress.expected = Some((total, pages));
+        progress.count += features.len() as u64;
         for value in features {
             let id = value["id"].as_str().ok_or("vworld_missing_id")?;
-            if !cell_ids.insert(id.to_owned()) {
+            if !progress.ids.insert(id.to_owned()) {
                 return Err("vworld_repeated_pagination_id");
             }
         }
-        if index == pages && *raw_count != total {
+        if index == pages && progress.count != total {
             return Err("vworld_incomplete_cell");
         }
         if pages > 2000 {
@@ -379,31 +447,31 @@ async fn checked_page<'a>(
 }
 
 async fn export_layer(
+    collection: &Collection,
     client: &reqwest::Client,
     key: &str,
     name: &str,
     layer: &str,
     areas: Vec<[f64; 4]>,
 ) -> Result<()> {
-    if existing(Path::new(ROOT), name).await? {
+    if existing(collection, name).await? {
         return Ok(());
     }
-    let cache = Path::new(ROOT).join("vworld_pages").join(layer);
+    let cache = collection.root.join("vworld_pages").join(layer);
     fs::create_dir_all(&cache)
         .await
         .map_err(|_| "cache_directory_failed")?;
     let mut writer = BufWriter::new(
-        fs::File::create(Path::new(ROOT).join(format!("{name}.part")))
+        fs::File::create(collection.root.join(format!("{name}.part")))
             .await
             .map_err(|_| "dataset_write_failed")?,
     );
     let mut ids = HashSet::new();
     let mut count = 0u64;
+    let mut height_count = 0u64;
     for (cell, bbox) in areas.iter().enumerate() {
         let mut index = 1u64;
-        let mut expected_total = None;
-        let mut raw_count = 0u64;
-        let mut cell_ids = HashSet::new();
+        let mut progress = Pagination::default();
         loop {
             let path = cache.join(format!("cell-{cell:03}-page-{index:04}.json"));
             let cached = fs::try_exists(&path)
@@ -415,22 +483,13 @@ async fn export_layer(
             } else {
                 let payload = request(client, key, layer, *bbox, index).await?;
                 // Retain only data and pagination, never request URLs or keys.
-                let sanitized = json!({"response":{
+                json!({"response":{
                     "status":payload["response"]["status"],"record":payload["response"]["record"],
                     "page":payload["response"]["page"],"result":payload["response"]["result"]
-                }});
-                sanitized
+                }})
             };
-            let (features, pages) = checked_page(
-                &cache,
-                cell,
-                &payload,
-                index,
-                &mut expected_total,
-                &mut raw_count,
-                &mut cell_ids,
-            )
-            .await?;
+            let (features, pages) =
+                checked_page(&cache, cell, &payload, index, &mut progress).await?;
             if !cached {
                 json_file(&path, &payload).await?;
             }
@@ -439,15 +498,13 @@ async fn export_layer(
                 if ids.insert(id.to_owned()) {
                     feature(&mut writer, value).await?;
                     count += 1;
+                    height_count += u64::from(height(value).is_some());
                 }
             }
             if index == pages {
                 break;
             }
             index += 1;
-            if index > 2000 {
-                return Err("vworld_page_limit");
-            }
         }
         if cell % 25 == 0 {
             println!(
@@ -458,14 +515,31 @@ async fn export_layer(
         }
     }
     flush(writer).await?;
-    finish(name, json!({"feature_count":count,"source":API,"source_layer":layer,"format":"GeoJSONL",
-        "grid_cell_count":areas.len(),"selection":"complete_bbox_grid_full_geometry","deduplication":"provider_feature_id",
-        "source_date":null,"license":"VWorld provider terms; source attribution required",
-        "quality_flags":if layer == "LT_C_SPBD" {vec!["building_height_not_provided","floor_count_is_not_height"]} else {vec![]}
-    })).await
+    let flags: &[&str] = match layer {
+        "LT_C_SPBD" => &["building_height_not_provided", "floor_count_is_not_height"],
+        "LT_C_BLDGINFO" => &[
+            "height_zero_or_missing_is_unknown",
+            "provider_height_not_field_survey_verified",
+            "address_building_ids_not_interchangeable",
+        ],
+        _ => &[],
+    };
+    let mut metadata = json!({
+        "feature_count": count, "source": API, "source_layer": layer,
+        "format": "GeoJSONL", "grid_cell_count": areas.len(),
+        "selection": "complete_bbox_grid_full_geometry",
+        "deduplication": "provider_feature_id", "source_date": null,
+        "license": "VWorld provider terms; source attribution required",
+        "quality_flags": flags
+    });
+    if layer == "LT_C_BLDGINFO" {
+        metadata["positive_height_count"] = json!(height_count);
+        metadata["unknown_height_count"] = json!(count - height_count);
+    }
+    finish(collection, name, metadata).await
 }
 
-async fn export_api() -> Result<()> {
+async fn export_api(collection: &Collection) -> Result<()> {
     let key = setting(".env", "vworld_key")?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(45))
@@ -473,31 +547,23 @@ async fn export_api() -> Result<()> {
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|_| "https_client_failed")?;
-    export_layer(
-        &client,
-        &key,
-        "coastline.geojsonl",
-        "LT_L_TOISDEPCNTAH",
-        vec![BBOX],
-    )
-    .await?;
-    export_layer(
-        &client,
-        &key,
-        "vworld_admin_boundary.geojsonl",
-        "LT_C_ADSIGG_INFO",
-        vec![BBOX],
-    )
-    .await?;
-    export_layer(&client, &key, "buildings.geojsonl", "LT_C_SPBD", cells()).await
+    for (name, layer) in LAYERS {
+        let areas = if matches!(layer, "LT_C_SPBD" | "LT_C_BLDGINFO") {
+            cells(collection.bbox)
+        } else {
+            vec![collection.bbox]
+        };
+        export_layer(collection, &client, &key, name, layer, areas).await?;
+    }
+    Ok(())
 }
 
-async fn export_dem() -> Result<()> {
+async fn export_dem(collection: &Collection) -> Result<()> {
     let name = "dem_jeju.tif";
-    if existing(Path::new(ROOT), name).await? {
+    if existing(collection, name).await? {
         return Ok(());
     }
-    let part = Path::new(ROOT).join(format!("{name}.part"));
+    let part = collection.root.join(format!("{name}.part"));
     let result = tokio::time::timeout(
         Duration::from_secs(120),
         Command::new("/mnt/nvme/Energy-hub/.venv/bin/python")
@@ -505,6 +571,7 @@ async fn export_dem() -> Result<()> {
             .arg(include_str!("../../scripts/export_dem.py"))
             .arg("/mnt/nvme/Energy-hub/research/data/raw/dem_korea.tif")
             .arg(part)
+            .args(collection.bbox.map(|value| value.to_string()))
             .kill_on_drop(true)
             .output(),
     )
@@ -522,17 +589,28 @@ async fn export_dem() -> Result<()> {
         "source_vertical_datum_unverified",
         "source_license_unverified"
     ]);
-    finish(name, metadata).await
+    finish(collection, name, metadata).await
 }
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let root = Path::new(ROOT);
+    let collection = match Collection::from_args(&env::args().skip(1).collect::<Vec<_>>()) {
+        Ok(collection) => collection,
+        Err(error) => {
+            eprintln!("{error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let root = &collection.root;
     if fs::create_dir_all(root).await.is_err() {
         eprintln!("collection_directory_unwritable");
         return ExitCode::FAILURE;
     }
-    let (db, api, dem) = tokio::join!(export_db(), export_api(), export_dem());
+    let (db, api, dem) = tokio::join!(
+        export_db(&collection),
+        export_api(&collection),
+        export_dem(&collection)
+    );
     let errors: Vec<&str> = [db, api, dem]
         .into_iter()
         .filter_map(std::result::Result::err)
@@ -542,15 +620,9 @@ async fn main() -> ExitCode {
         .iter()
         .map(|table| format!("{table}.geojsonl"))
         .collect();
-    names.extend(
-        [
-            "coastline.geojsonl",
-            "vworld_admin_boundary.geojsonl",
-            "buildings.geojsonl",
-            "dem_jeju.tif",
-        ]
-        .map(str::to_owned),
-    );
+    names.extend(LAYERS.map(|(name, _)| name.to_owned()));
+    names.push("dem_jeju.tif".to_owned());
+    let expected_count = names.len();
     for name in names {
         if let Ok(bytes) = fs::read(root.join(format!("{name}.metadata.json"))).await
             && let Ok(value) = serde_json::from_slice::<Value>(&bytes)
@@ -558,11 +630,18 @@ async fn main() -> ExitCode {
             datasets.push(value);
         }
     }
-    let complete = errors.is_empty() && datasets.len() == 11;
-    let manifest = json!({"schema_version":1,"complete":complete,"generated_at":Utc::now(),
-        "bbox":BBOX,"crs":"EPSG:4326","datasets":datasets,"errors":errors,
-        "notes":["GIS records are not electrical topology","Building floors do not establish measured height",
-                 "Historical administrative boundary codes and dates are preserved"]});
+    let complete = errors.is_empty() && datasets.len() == expected_count;
+    let manifest = json!({
+        "schema_version": 1, "complete": complete, "generated_at": Utc::now(),
+        "bbox": collection.bbox, "crs": "EPSG:4326", "datasets": datasets, "errors": errors,
+        "notes": [
+            "Completion applies to the configured datasets and bounding box",
+            "Bounding-box candidates may include neighboring regions; apply official Jeju boundary for scene preparation",
+            "GIS records are not electrical topology",
+            "Building floors do not establish measured height",
+            "Historical administrative boundary codes and dates are preserved"
+        ]
+    });
     if json_file(&root.join("manifest.json"), &manifest)
         .await
         .is_err()
@@ -596,7 +675,11 @@ mod tests {
         fs::write(root.join("roads.geojsonl"), b"uncommitted data")
             .await
             .unwrap();
-        let result = existing(&root, "roads.geojsonl").await;
+        let collection = Collection {
+            root: root.clone(),
+            bbox: BBOX,
+        };
+        let result = existing(&collection, "roads.geojsonl").await;
         fs::remove_dir_all(root).await.unwrap();
         assert_eq!(result, Ok(false));
     }
@@ -617,10 +700,8 @@ mod tests {
         for failure in ["total", "duplicate", "incomplete"] {
             fs::write(&first, b"{}").await.unwrap();
             fs::write(&next, b"{}").await.unwrap();
-            let mut expected = None;
-            let mut count = 0;
-            let mut ids = HashSet::new();
-            checked_page(&root, 0, &good, 1, &mut expected, &mut count, &mut ids)
+            let mut progress = Pagination::default();
+            checked_page(&root, 0, &good, 1, &mut progress)
                 .await
                 .unwrap();
             let mut bad = good.clone();
@@ -632,7 +713,7 @@ mod tests {
                 bad["response"]["result"]["featureCollection"]["features"] = json!([]);
             }
             assert!(
-                checked_page(&root, 0, &bad, 2, &mut expected, &mut count, &mut ids)
+                checked_page(&root, 0, &bad, 2, &mut progress)
                     .await
                     .is_err()
             );
@@ -648,7 +729,7 @@ mod tests {
 
     #[test]
     fn grid_covers_the_region_with_requests_below_ten_square_kilometres() {
-        let cells = cells();
+        let cells = cells(BBOX);
         assert_eq!(cells.len(), 816);
         assert_eq!(cells[0], [126.0, 33.0, 126.03, 33.03]);
         assert_eq!(cells.last().unwrap()[2..], [127.0, 33.7]);
@@ -677,5 +758,40 @@ mod tests {
         let mut contradictory = empty;
         contradictory["response"]["result"] = good["response"]["result"].clone();
         assert!(page(&contradictory, 1).is_err());
+    }
+
+    #[test]
+    fn supplementary_grid_covers_the_northern_islands_without_repeating_the_mainland() {
+        let bbox = [126.2, 33.7, 126.7, 34.05];
+        let areas = cells(bbox);
+        assert_eq!(areas.len(), 204);
+        for (actual, expected) in areas[0].iter().zip([126.2, 33.7, 126.23, 33.73]) {
+            assert!((actual - expected).abs() < 1e-10);
+        }
+        assert_eq!(areas.last().unwrap()[2..], [126.7, 34.05]);
+        let area: f64 = areas.iter().map(|b| (b[2] - b[0]) * (b[3] - b[1])).sum();
+        assert!((area - 0.175).abs() < 1e-9);
+        assert!(
+            areas
+                .iter()
+                .all(|b| b[0] >= 126.2 && b[1] >= 33.7 && b[2] <= 126.7 && b[3] <= 34.05)
+        );
+    }
+
+    #[test]
+    fn only_positive_finite_provider_heights_are_usable() {
+        assert_eq!(height(&json!({"properties":{"height":"12.5"}})), Some(12.5));
+        assert_eq!(height(&json!({"properties":{"height":8.0}})), Some(8.0));
+        for value in [
+            json!("0"),
+            json!(0),
+            json!(-1),
+            json!("NaN"),
+            json!("inf"),
+            Value::Null,
+        ] {
+            assert_eq!(height(&json!({"properties":{"height":value}})), None);
+        }
+        assert_eq!(height(&json!({"properties":{"grnd_flr":4}})), None);
     }
 }
