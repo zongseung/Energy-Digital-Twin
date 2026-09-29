@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "units": "m",
+  "verified_operator_spec": {"rotor_diameter_m": 91.59, "rated_power_mw": 3.0, "source": "http://tamra-owp.co.kr/2019/sub0204.php"},
+  "estimated": {
+    "hub_height_m": 80.0,
+    "deck_height_m": 12.0,
+    "sea_depth_m": 18.0,
+    "tower_base_radius_m": 2.15,
+    "tower_top_radius_m": 1.45,
+    "tower_shell_thickness_m": 0.07,
+    "nacelle_length_width_height_m": [9.0, 4.0, 4.0],
+    "rotor_offset_x_m": -4.9,
+    "hub_radius_m": 1.5,
+    "blade_root_radius_m": 2.0,
+    "blade_max_chord_m": 4.1,
+    "blade_prebend_m": 2.0,
+    "blade_sweep_m": 1.6,
+    "blade_root_twist_deg": 16.0,
+    "jacket_base_width_m": 13.0,
+    "jacket_top_width_m": 6.3,
+    "jacket_leg_radius_m": 0.44,
+    "brace_radius_m": 0.17,
+    "deck_width_m": 9.0,
+    "railing_height_m": 1.2,
+    "yaw_deg": 25.0,
+    "rotor_phase_deg": 12.0,
+    "ocean_level_egm2008_m": 0.0
+  },
+  "mesh": {"round_sections": 40, "blade_span_sections": 32, "blade_profile_sections": 32},
+  "coordinate_frame": {"horizontal_crs": "EPSG:32652", "origin_lon_lat": [126.17217, 33.3430267], "vertical_crs": "EPSG:3855", "axes": "x east, y up, z south", "scale": 1.0},
+  "terrain_bbox_lon_lat": [126.15, 33.325, 126.205, 33.376],
+  "claim_limits": [
+    "Only operator rotor diameter and rated power are confirmed equipment specifications; pairing that specification with these GIS individuals remains tentative.",
+    "Hub height, seabed depth, jacket structure, yaw, blade section/twist, nacelle details, deck and access equipment are adjustable visual estimates, not engineering drawings.",
+    "Source GIS coordinates are preserved; individual turbines have not been independently surveyed or matched to every object in the photograph.",
+    "Land/shore/ocean colours are synthetic PBR visualization materials; no photographic surface texture is reproduced."
+  ]
+}

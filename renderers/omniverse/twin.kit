@@ -1,0 +1,23 @@
+[package]
+title = "Estimated Turbine Asset Scene"
+version = "0.1.0"
+
+[dependencies]
+"omni.usd" = { version = "1.12.4", exact = true }
+"omni.hydra.rtx" = { version = "1.0.0", exact = true }
+"omni.kit.viewport.window" = { version = "107.0.8", exact = true }
+"omni.kit.viewport.utility" = { version = "1.0.18", exact = true }
+
+"omni.kit.asset_converter" = { version = "2.8.9", exact = true }
+
+[settings]
+app.window.enabled = false
+app.renderer.resolution.width = 1600
+app.renderer.resolution.height = 1000
+renderer.activeGpu = 1
+renderer.multiGpu.enabled = false
+renderer.gpuEnumeration.glInterop.enabled = false
+app.viewport.defaults.fillViewport = false
+rtx.ecoMode.enabled = false
+rtx.rendermode = "RaytracedLighting"
+app.telemetry.enabled = false
