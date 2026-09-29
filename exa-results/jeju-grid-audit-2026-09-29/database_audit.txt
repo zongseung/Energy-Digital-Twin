@@ -1,0 +1,157 @@
+READ-ONLY DATABASE AUDIT, 2026-09-29 Asia/Seoul
+Counts and latest timestamps belong to individual queries while ingestion continues.
+
+=== demand_counts.txt ===
+Read-only query: docker exec demand-postgres psql -U demand -d demand -X -A -t -v ON_ERROR_STOP=1 -c 'BEGIN READ ONLY' -c 'SET LOCAL statement_timeout=20000' -c 'SELECT '\''jeju_supply_demand'\'',count(*),min(ts),max(ts),count(*) FILTER (WHERE demand_mw IS NULL),count(*) FILTER (WHERE wind_mw IS NULL),count(*) FILTER (WHERE solar_mw IS NULL),min(demand_mw),max(demand_mw) FROM jeju_supply_demand' -c 'SELECT '\''recent'\'',* FROM jeju_supply_demand ORDER BY ts DESC LIMIT 3' -c 'SELECT '\''sukub_ranges'\'',min(supply_mw),max(supply_mw),min(wind_mw),max(wind_mw),min(solar_mw),max(solar_mw),count(*) FILTER (WHERE wind_mw>1000),count(*) FILTER (WHERE renewable_total_mw < solar_mw+wind_mw) FROM jeju_supply_demand' -c COMMIT
+
+BEGIN
+SET
+jeju_supply_demand|602673|2021-01-01 00:00:00|2026-09-29 17:50:00|0|0|0|0|1920
+recent|2026-09-29 17:50:00|1406|796|53.2229|35.5308|6.51249
+recent|2026-09-29 17:45:00|1413|795|60.1932|42.8085|6.92672
+recent|2026-09-29 17:40:00|1423|799|70.2733|52.5357|7.3297
+sukub_ranges|0|2172|0|1058.38|0|457.867|1|51
+COMMIT
+
+
+
+=== pv_counts.txt ===
+Read-only query: docker exec pv-data-postgres psql -U pv -d pv -X -A -t -v ON_ERROR_STOP=1 -c 'BEGIN READ ONLY' -c 'SET LOCAL statement_timeout=20000' -c 'SELECT '\''plant'\'',plant_id,plant_name,unit_no,fuel_type,operator,region,capacity_mw,capacity_confidence,lat,lon FROM plants WHERE region ILIKE '\''%jeju%'\'' OR sido LIKE '\''%제주%'\'' OR lat BETWEEN 33 AND 34 ORDER BY plant_id' -c 'SELECT '\''generation'\'',p.plant_id,p.plant_name,p.fuel_type,count(g.*),min(g.timestamp),max(g.timestamp),count(g.*) FILTER (WHERE g.gen_kwh IS NULL),count(g.*) FILTER (WHERE g.gen_kwh<0),max(g.gen_kwh) FROM plants p LEFT JOIN generation g USING(plant_id) WHERE p.region ILIKE '\''%jeju%'\'' OR p.sido LIKE '\''%제주%'\'' OR p.lat BETWEEN 33 AND 34 GROUP BY p.plant_id,p.plant_name,p.fuel_type ORDER BY p.plant_id' -c 'SELECT '\''weather'\'',station_name,count(*),min(timestamp),max(timestamp),count(*) FILTER (WHERE temperature IS NULL),count(*) FILTER (WHERE solar_radiation IS NULL) FROM weather_asos WHERE station_name IN ('\''제주'\'','\''서귀포'\'','\''성산'\'','\''고산'\'') GROUP BY station_name ORDER BY 1' -c 'SELECT '\''smp'\'',count(*),min(timestamp),max(timestamp),count(*) FILTER (WHERE is_confirmed) FROM smp_realtime_jeju' -c COMMIT
+
+BEGIN
+SET
+plant|3|한국남부발전(주)_남제주소내 태양광발전실적|1|solar|nambu|mainland||불확실|33.2371|126.3417
+plant|51|Hangyoung|1|wind|hangyoung|jeju||근사|33.35|126.18
+generation|3|한국남부발전(주)_남제주소내 태양광발전실적|solar|90050|2015-10-23 01:00:00|2026-09-27 23:00:00|0|24|85525
+generation|51|Hangyoung|wind|106608|2013-01-01 01:00:00|2025-03-01 00:00:00|0|0|23780
+weather|고산|51072|2019-01-01 00:00:00|2026-09-28 23:00:00|9|23039
+weather|성산|51072|2019-01-01 00:00:00|2026-09-28 23:00:00|28|51071
+weather|제주|51072|2019-01-01 00:00:00|2026-09-28 23:00:00|3|23088
+weather|서귀포|51072|2019-01-01 00:00:00|2026-09-28 23:00:00|4|38963
+smp|82656|2024-03-01 00:00:00|2026-09-27 23:45:00|82656
+COMMIT
+
+
+
+=== hub_counts.txt ===
+Read-only query: docker exec energy-hub-db psql -U energy_user -d energy_hub -X -A -t -v ON_ERROR_STOP=1 -c 'BEGIN READ ONLY' -c 'SET LOCAL statement_timeout=20000' -c 'SELECT '\''asset'\'',sido,count(*) FROM power_line WHERE sido LIKE '\''%제주%'\'' GROUP BY sido' -c 'SELECT '\''osm_plants'\'',plant_source,count(*),count(*) FILTER(WHERE plant_output IS NULL OR plant_output='\'''\'') FROM power_plant WHERE geom && ST_MakeEnvelope(126,33,127,33.7,4326) GROUP BY plant_source' -c 'SELECT '\''pv_facility'\'',count(*),count(*) FILTER (WHERE has_coord),count(*) FILTER (WHERE capacity_kw>0),count(*) FILTER (WHERE status='\''정상가동'\''),sum(capacity_kw) FROM pv_facility WHERE geom && ST_MakeEnvelope(126,33,127,33.7,4326)' -c 'SELECT '\''wind_locations'\'',plant_name,operator,capacity_mw,ST_X(geom),ST_Y(geom) FROM wind_plant_location WHERE geom && ST_MakeEnvelope(126,33,127,33.7,4326)' -c 'SELECT '\''hourly_demand'\'',count(*),min(ts),max(ts),count(*) FILTER (WHERE demand_mw IS NULL) FROM jeju_demand_hourly' -c 'SELECT '\''fuel_generation'\'',fuel_type,count(*),min(ts),max(ts),count(*) FILTER (WHERE gen_mwh IS NULL) FROM jeju_generation_mix GROUP BY fuel_type ORDER BY fuel_type' -c 'SELECT '\''grid_summary'\'',count(*),min(ts),max(ts),count(*) FILTER(WHERE NOT converged) FROM jeju_grid_summary' -c 'SELECT '\''grid_lines'\'',count(*),count(DISTINCT ts),count(DISTINCT line_id),count(*) FILTER(WHERE estimated) FROM jeju_grid_line_state' -c 'SELECT '\''kepco_grid'\'',count(*),count(DISTINCT subst_cd),count(DISTINCT dl_cd),count(DISTINCT mtr_no) FROM research.kepco_grid WHERE addr_do LIKE '\''%제주%'\''' -c 'SELECT '\''aws'\'',stn,name,count(*),min(obs_date),max(obs_date),count(*) FILTER(WHERE ws IS NULL),count(*) FILTER(WHERE imputed IS NOT NULL AND imputed<>'\'''\'') FROM pf.aws_obs_daily WHERE name IN ('\''제주'\'','\''서귀포'\'','\''성산'\'','\''고산'\'') GROUP BY stn,name ORDER BY stn' -c COMMIT
+
+BEGIN
+SET
+asset|제주특별자치도|51
+osm_plants||1|1
+osm_plants|battery|1|1
+osm_plants|gas|1|0
+osm_plants|diesel|8|8
+osm_plants|wind|165|40
+osm_plants|solar|704|1
+osm_plants|biogas|3|0
+osm_plants|biomass|2|0
+osm_plants|hydro|2|0
+osm_plants|oil|2|0
+osm_plants|wave|1|0
+pv_facility|1791|1791|1791|1791|593212.25
+wind_locations|Hangyoung|제주에너지공사||126.1813|33.3432
+hourly_demand|48119|2021-01-01 00:00:00|2026-06-30 23:00:00|0
+fuel_generation|lng|8784|2024-01-01 00:00:00|2024-12-31 23:00:00|0
+fuel_generation|oil|2760|2024-01-01 00:00:00|2024-04-24 23:00:00|0
+fuel_generation|other|8784|2024-01-01 00:00:00|2024-12-31 23:00:00|0
+fuel_generation|renewable_other|8784|2024-01-01 00:00:00|2024-12-31 23:00:00|0
+fuel_generation|solar|8784|2024-01-01 00:00:00|2024-12-31 23:00:00|0
+fuel_generation|wind|8784|2024-01-01 00:00:00|2024-12-31 23:00:00|0
+grid_summary|24|2026-06-13 00:00:00|2026-06-13 01:55:00|0
+grid_lines|240|24|10|48
+
+
+
+=== additional_db_evidence.txt ===
+Hub GIS/HVDC metadata
+BEGIN
+SET
+metadata|research|kepco_grid|r|3574581
+metadata|pf|aws_obs_daily|r|377822
+kepco_region_stats|{경상남도,전북특별자치도,경상북도,충청남도,전라남도,충청북도,경기도,강원특별자치도,제주특별자치도,인천광역시,대구광역시,울산광역시,서울특별시,부산광역시,광주광역시,대전광역시,세종특별자치시}|{0.11686666,0.1119,0.11136667,0.1086,0.10713334,0.1068,0.105233334,0.0815,0.031933334,0.024933333,0.022266667,0.015433333,0.012533333,0.012433333,0.0117,0.009966667,0.0094}
+duplicates|3631|4156|t
+duplicates|3632|4157|t
+duplicates|3633|4158|t
+hvdc_endpoint|3631|180000|126.5927629|34.367529|126.5955555|33.5352064
+hvdc_endpoint|3632|150000|126.7159438|34.3203831|126.6007054|33.5351885
+hvdc_endpoint|3633|250000|126.1878329|34.3854369|126.4730751|33.4546731
+recent_hub|2026-09-29 18:05:00
+COMMIT
+
+
+Hub source samples
+BEGIN
+SET
+kepco_indexes|kepco_grid_pkey|CREATE UNIQUE INDEX kepco_grid_pkey ON research.kepco_grid USING btree (id)
+kepco_indexes|kepco_grid_addr_do_addr_si_addr_gu_addr_lidong_addr_li_addr_key|CREATE UNIQUE INDEX kepco_grid_addr_do_addr_si_addr_gu_addr_lidong_addr_li_addr_key ON research.kepco_grid USING btree (addr_do, addr_si, addr_gu, addr_lidong, addr_li, addr_jibun)
+kepco_indexes|idx_kepco_grid_addr|CREATE INDEX idx_kepco_grid_addr ON research.kepco_grid USING btree (addr_do, addr_si, addr_gu, addr_lidong)
+kepco_indexes|idx_kepco_grid_subst|CREATE INDEX idx_kepco_grid_subst ON research.kepco_grid USING btree (subst_cd, dl_cd)
+kepco_sample|신서귀|2842|200000.0|0.0|MT6_002|범섬|06|200000.0|50000.0|12000.0
+kepco_sample|신서귀|2842|200000.0|0.0|MT6_002|범섬|06|200000.0|50000.0|12000.0
+kepco_sample|신서귀|2842|200000.0|0.0|MT6_002|범섬|06|200000.0|50000.0|12000.0
+aws_station_sample|90|속초|ASOS|2015-01-01|2.6|270.7
+aws_station_sample|90|속초|ASOS|2015-01-02|4.9|299.3
+aws_station_sample|90|속초|ASOS|2015-01-03|2.4|265.8
+COMMIT
+
+
+ASOS coverage and plant quality
+BEGIN
+SET
+asos_year|고산|2019|744
+asos_year|고산|2021|8760
+asos_year|고산|2022|8760
+asos_year|고산|2023|8760
+asos_year|고산|2024|8784
+asos_year|고산|2025|8760
+asos_year|고산|2026|6504
+asos_year|성산|2019|744
+asos_year|성산|2021|8760
+asos_year|성산|2022|8760
+asos_year|성산|2023|8760
+asos_year|성산|2024|8784
+asos_year|성산|2025|8760
+asos_year|성산|2026|6504
+asos_year|제주|2019|744
+asos_year|제주|2021|8760
+asos_year|제주|2022|8760
+asos_year|제주|2023|8760
+asos_year|제주|2024|8784
+asos_year|제주|2025|8760
+asos_year|제주|2026|6504
+asos_year|서귀포|2019|744
+asos_year|서귀포|2021|8760
+asos_year|서귀포|2022|8760
+asos_year|서귀포|2023|8760
+asos_year|서귀포|2024|8784
+asos_year|서귀포|2025|8760
+asos_year|서귀포|2026|6504
+weather_sample|제주|2026-09-28 19:00:00|0
+weather_sample|제주|2026-09-28 18:00:00|0.01
+weather_sample|제주|2026-09-28 17:00:00|0.22
+weather_sample|제주|2026-09-28 16:00:00|0.29
+jeju_plant_quality|51|Hangyoung|jeju|미검증||시각 ±1시간 불확실 — 원천 라벨이 구간시작인지 구간종료인지 확정 근거가 없어 보정하지 않았다
+jeju_plant_quality|3|한국남부발전(주)_남제주소내 태양광발전실적|mainland|정상|1900-01-01|
+COMMIT
+
+
+KEPCO exact regional counts
+BEGIN
+SET
+kepco_jeju|99860|15|54|146
+COMMIT
+
+
+
+Hub regional LIKE count query stopped at 20-second timeout. Later exact equality/index query succeeded: kepco_jeju|99860|15|54|146. The AWS named sample and ASOS IDs 184/185/188/189 returned zero rows; nationwide table exists.
+
+
+Mount mapping: demand-postgres -> /mnt/iscsi/postgres/demand-postgres; pv-data-postgres -> /mnt/iscsi-renewable/postgres/pv-data-postgres; energy-hub-db -> /mnt/iscsi-renewable/postgres/energy-hub-data.
+
+
+Verified geometry: power_line LINESTRING EPSG:4326; substation/power_plant/pv_facility/wind_plant_location POINT EPSG:4326. Jeju sido lines 51; bbox-intersect lines including duplicate mainland entries 54; missing voltage 5, invalid geometry 0; Jeju substation records 13, missing voltage 0, unnamed 1.
+
+
+Restricted CSV reads: 202608 and 202609 owned by nobody with mode0600; sudo -n read-only attempt failed: sudo: a password is required. No file-permission changes made.

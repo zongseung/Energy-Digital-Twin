@@ -1,0 +1,74 @@
+{
+  "collected_on": "2026-09-29",
+  "source": "Jeju Tourism Organization official Visit Jeju location pages",
+  "note": "CDN folder dates are not verified capture dates. A tourism place location is not the camera position. These two photos are not a validated multi-view reconstruction set.",
+  "photos": [
+    {
+      "photo_id": "visitjeju-2019022638586",
+      "place": "신창풍차해안도로",
+      "source_page": "https://www.visitjeju.net/kr/detail/view?contentsid=CNTS_200000000007676",
+      "url": "https://api.cdn.visitjeju.net/photomng/imgpath/202408/19/703d46a2-cf57-41fe-9911-a8a2f1e65043.webp",
+      "filename": "sinchang_wind_coast_reference.webp",
+      "content_type": "image/webp",
+      "local_path": "reference_photos/jeju/sinchang_wind_coast_reference.webp",
+      "bytes": 94460,
+      "sha256": "37b3f73d231a456034d00e67e37a593da106dc45d51f11556835e59671dc9145",
+      "captured_at": null,
+      "camera_pose": null,
+      "license_status": "per_image_terms_not_verified",
+      "use_status": "local_source_reference_only; not approved as texture or generation input",
+      "width": 1280,
+      "height": 373,
+      "format": "WEBP",
+      "verified_by": "decoded and visually inspected on 2026-09-29",
+      "observed_content": [
+        "현무암 해안",
+        "조간대와 바다",
+        "산책로",
+        "풍력 터빈 일부",
+        "조형물과 전면 글자 구조물"
+      ],
+      "quality_notes": [
+        "1280x373 배너 비율",
+        "터빈 전체 형상과 후면 미확인",
+        "전면 글자·조형물 포함"
+      ],
+      "intended_role": "지역 실사 구도와 재질 참고",
+      "reconstruction_eligible": false,
+      "reconstruction_reason": "Not a same-session overlapping multi-view set; camera poses, capture times and metric scale are unknown."
+    },
+    {
+      "photo_id": "visitjeju-2019022585324",
+      "place": "신창~차귀해안도로",
+      "source_page": "https://m.visitjeju.net/kr/detail/view?contentsid=CONT_000000000500403",
+      "url": "https://api.cdn.visitjeju.net/photomng/imgpath/202110/27/e4c9d38e-9686-4cc2-b10c-cdb0c408c695.webp",
+      "filename": "sinchang_chagwi_coast_reference.webp",
+      "content_type": "image/webp",
+      "local_path": "reference_photos/jeju/sinchang_chagwi_coast_reference.webp",
+      "bytes": 24814,
+      "sha256": "36f1c44602fcf6a40fcdfa455b51e337b03d95f857130316d83838bf97bca43d",
+      "captured_at": null,
+      "camera_pose": null,
+      "license_status": "per_image_terms_not_verified",
+      "use_status": "local_source_reference_only; not approved as texture or generation input",
+      "width": 1242,
+      "height": 362,
+      "format": "WEBP",
+      "verified_by": "decoded and visually inspected on 2026-09-29",
+      "observed_content": [
+        "지상 해안도로",
+        "현무암과 해안",
+        "노을",
+        "풍력 타워 일부"
+      ],
+      "quality_notes": [
+        "1242x362 배너 비율",
+        "역광과 렌즈 플레어",
+        "터빈 상부가 프레임 밖"
+      ],
+      "intended_role": "도로·해안 배치와 조명 참고",
+      "reconstruction_eligible": false,
+      "reconstruction_reason": "Not a same-session overlapping multi-view set; camera poses, capture times and metric scale are unknown."
+    }
+  ]
+}

@@ -1,0 +1,4910 @@
+{
+  "audit_date": "2026-09-29",
+  "csv_files": 76,
+  "readable_files": 74,
+  "files": [
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/demand/jeju_demand_2021.csv",
+      "bytes": 395524,
+      "columns": [
+        "timestamp",
+        "demand_mw",
+        "source"
+      ],
+      "rows": 8760,
+      "duplicate_keys": 0,
+      "start": "2021-01-01 00:00:00",
+      "end": "2021-12-31 23:00:00",
+      "unique_timestamps": 8760,
+      "cadence_seconds": [
+        [
+          3600,
+          8759
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "demand_mw": 0,
+        "source": 0
+      },
+      "ranges": {
+        "demand_mw": {
+          "min": 371.1666666666667,
+          "max": 1129.9166666666667,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      },
+      "source_counts": {
+        "sukub_5min": 8760
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/demand/jeju_demand_2022.csv",
+      "bytes": 395412,
+      "columns": [
+        "timestamp",
+        "demand_mw",
+        "source"
+      ],
+      "rows": 8738,
+      "duplicate_keys": 0,
+      "start": "2022-01-01 00:00:00",
+      "end": "2022-12-31 23:00:00",
+      "unique_timestamps": 8738,
+      "cadence_seconds": [
+        [
+          3600,
+          8734
+        ],
+        [
+          39600,
+          2
+        ],
+        [
+          10800,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 22,
+      "blank_values": {
+        "timestamp": 0,
+        "demand_mw": 0,
+        "source": 0
+      },
+      "ranges": {
+        "demand_mw": {
+          "min": 378.0,
+          "max": 1113.5833333333333,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      },
+      "source_counts": {
+        "sukub_5min": 8738
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/demand/jeju_demand_2023.csv",
+      "bytes": 394088,
+      "columns": [
+        "timestamp",
+        "demand_mw",
+        "source"
+      ],
+      "rows": 8734,
+      "duplicate_keys": 0,
+      "start": "2023-01-01 00:00:00",
+      "end": "2023-12-31 23:00:00",
+      "unique_timestamps": 8734,
+      "cadence_seconds": [
+        [
+          3600,
+          8732
+        ],
+        [
+          97200,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 26,
+      "blank_values": {
+        "timestamp": 0,
+        "demand_mw": 0,
+        "source": 0
+      },
+      "ranges": {
+        "demand_mw": {
+          "min": 408.8333333333333,
+          "max": 1112.5833333333333,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      },
+      "source_counts": {
+        "sukub_5min": 8734
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/demand/jeju_demand_2024.csv",
+      "bytes": 398057,
+      "columns": [
+        "timestamp",
+        "demand_mw",
+        "source"
+      ],
+      "rows": 8784,
+      "duplicate_keys": 0,
+      "start": "2024-01-01 00:00:00",
+      "end": "2024-12-31 23:00:00",
+      "unique_timestamps": 8784,
+      "cadence_seconds": [
+        [
+          3600,
+          8783
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "demand_mw": 0,
+        "source": 0
+      },
+      "ranges": {
+        "demand_mw": {
+          "min": 478.5,
+          "max": 1215.4166666666667,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      },
+      "source_counts": {
+        "sukub_5min": 8784
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/demand/jeju_demand_2025.csv",
+      "bytes": 396836,
+      "columns": [
+        "timestamp",
+        "demand_mw",
+        "source"
+      ],
+      "rows": 8759,
+      "duplicate_keys": 0,
+      "start": "2025-01-01 00:00:00",
+      "end": "2025-12-31 23:00:00",
+      "unique_timestamps": 8759,
+      "cadence_seconds": [
+        [
+          3600,
+          8757
+        ],
+        [
+          7200,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "demand_mw": 0,
+        "source": 0
+      },
+      "ranges": {
+        "demand_mw": {
+          "min": 436.3333333333333,
+          "max": 1152.8333333333333,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      },
+      "source_counts": {
+        "sukub_5min": 8759
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/demand/jeju_demand_2026.csv",
+      "bytes": 174919,
+      "columns": [
+        "timestamp",
+        "demand_mw",
+        "source"
+      ],
+      "rows": 4344,
+      "duplicate_keys": 0,
+      "start": "2026-01-01 00:00:00",
+      "end": "2026-06-30 23:00:00",
+      "unique_timestamps": 4344,
+      "cadence_seconds": [
+        [
+          3600,
+          4343
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "demand_mw": 0,
+        "source": 0
+      },
+      "ranges": {
+        "demand_mw": {
+          "min": 423.917,
+          "max": 1132.0,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      },
+      "source_counts": {
+        "datagokr": 2614,
+        "sukub_5min": 1730
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/gen/jeju_gen_2024.csv",
+      "bytes": 1711207,
+      "columns": [
+        "timestamp",
+        "fuel_type",
+        "gen_mwh"
+      ],
+      "rows": 46680,
+      "duplicate_keys": 0,
+      "start": "2024-01-01 00:00:00",
+      "end": "2024-12-31 23:00:00",
+      "unique_timestamps": 8784,
+      "cadence_seconds": [
+        [
+          3600,
+          8783
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "fuel_type": 0,
+        "gen_mwh": 0
+      },
+      "ranges": {
+        "gen_mwh": {
+          "min": 0.0,
+          "max": 476.120848,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      },
+      "fuel_counts": {
+        "lng": 8784,
+        "oil": 2760,
+        "other": 8784,
+        "renewable_other": 8784,
+        "solar": 8784,
+        "wind": 8784
+      },
+      "fuel_missing_hours": {
+        "lng": 0,
+        "oil": 6024,
+        "other": 0,
+        "renewable_other": 0,
+        "solar": 0,
+        "wind": 0
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202101.csv",
+      "bytes": 490600,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8927,
+      "duplicate_keys": 0,
+      "start": "2021-01-01 00:00:00",
+      "end": "2021-01-31 23:55:00",
+      "unique_timestamps": 8927,
+      "cadence_seconds": [
+        [
+          300,
+          8925
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 944.0,
+          "max": 1522.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 456.0,
+          "max": 972.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 5.67898,
+          "max": 371.811,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 216.651,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 2.87835,
+          "max": 243.392,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202102.csv",
+      "bytes": 445127,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8064,
+      "duplicate_keys": 0,
+      "start": "2021-02-01 00:00:00",
+      "end": "2021-02-28 23:55:00",
+      "unique_timestamps": 8064,
+      "cadence_seconds": [
+        [
+          300,
+          8063
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 0.0,
+          "max": 1566.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 231.0,
+          "max": 989.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 18.2526,
+          "max": 389.66,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 223.926,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 4.69327,
+          "max": 245.751,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202103.csv",
+      "bytes": 493815,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8924,
+      "duplicate_keys": 0,
+      "start": "2021-03-01 00:00:00",
+      "end": "2021-03-31 23:55:00",
+      "unique_timestamps": 8924,
+      "cadence_seconds": [
+        [
+          300,
+          8919
+        ],
+        [
+          600,
+          4
+        ]
+      ],
+      "missing_slots_within_bounds": 4,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 950.0,
+          "max": 1611.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 327.0,
+          "max": 879.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 7.06193,
+          "max": 383.474,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 245.988,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 3.0817,
+          "max": 221.362,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202104.csv",
+      "bytes": 479435,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8639,
+      "duplicate_keys": 0,
+      "start": "2021-04-01 00:00:00",
+      "end": "2021-04-30 23:55:00",
+      "unique_timestamps": 8639,
+      "cadence_seconds": [
+        [
+          300,
+          8637
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1034.0,
+          "max": 1600.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 333.0,
+          "max": 840.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 9.91841,
+          "max": 368.655,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 241.553,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 3.79832,
+          "max": 245.796,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202105.csv",
+      "bytes": 496506,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8925,
+      "duplicate_keys": 0,
+      "start": "2021-05-01 00:00:00",
+      "end": "2021-05-31 23:55:00",
+      "unique_timestamps": 8925,
+      "cadence_seconds": [
+        [
+          300,
+          8921
+        ],
+        [
+          600,
+          3
+        ]
+      ],
+      "missing_slots_within_bounds": 3,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 831.0,
+          "max": 1580.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 308.0,
+          "max": 739.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 8.80144,
+          "max": 345.726,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 226.986,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 2.39327,
+          "max": 226.256,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202106.csv",
+      "bytes": 479217,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8640,
+      "duplicate_keys": 0,
+      "start": "2021-06-01 00:00:00",
+      "end": "2021-06-30 23:55:00",
+      "unique_timestamps": 8640,
+      "cadence_seconds": [
+        [
+          300,
+          8639
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 124.0,
+          "max": 1355.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 406.0,
+          "max": 822.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 4.90506,
+          "max": 274.177,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 213.685,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 3.72606,
+          "max": 225.553,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202107.csv",
+      "bytes": 494313,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8926,
+      "duplicate_keys": 0,
+      "start": "2021-07-01 00:00:00",
+      "end": "2021-07-31 23:55:00",
+      "unique_timestamps": 8926,
+      "cadence_seconds": [
+        [
+          300,
+          8923
+        ],
+        [
+          600,
+          2
+        ]
+      ],
+      "missing_slots_within_bounds": 2,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 512.0,
+          "max": 1569.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 537.0,
+          "max": 1016.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 14.052,
+          "max": 288.026,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 187.143,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 3.71501,
+          "max": 208.44,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202108.csv",
+      "bytes": 494444,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8928,
+      "duplicate_keys": 0,
+      "start": "2021-08-01 00:00:00",
+      "end": "2021-08-31 23:55:00",
+      "unique_timestamps": 8928,
+      "cadence_seconds": [
+        [
+          300,
+          8927
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 444.0,
+          "max": 1626.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 536.0,
+          "max": 1228.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 7.27094,
+          "max": 340.343,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 196.833,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 3.61182,
+          "max": 226.021,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202109.csv",
+      "bytes": 478567,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8636,
+      "duplicate_keys": 0,
+      "start": "2021-09-01 00:00:00",
+      "end": "2021-09-30 23:55:00",
+      "unique_timestamps": 8636,
+      "cadence_seconds": [
+        [
+          300,
+          8633
+        ],
+        [
+          1200,
+          1
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 4,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1104.0,
+          "max": 1530.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 452.0,
+          "max": 976.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 7.01897,
+          "max": 321.231,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 207.232,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 3.6257,
+          "max": 221.483,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202110.csv",
+      "bytes": 494980,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8927,
+      "duplicate_keys": 0,
+      "start": "2021-10-01 00:00:00",
+      "end": "2021-10-31 23:55:00",
+      "unique_timestamps": 8927,
+      "cadence_seconds": [
+        [
+          300,
+          8925
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1108.0,
+          "max": 1679.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 372.0,
+          "max": 878.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 15.8792,
+          "max": 389.994,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 213.873,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.98874,
+          "max": 254.401,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202111.csv",
+      "bytes": 476945,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8628,
+      "duplicate_keys": 0,
+      "start": "2021-11-01 00:00:00",
+      "end": "2021-11-30 23:55:00",
+      "unique_timestamps": 8628,
+      "cadence_seconds": [
+        [
+          300,
+          8616
+        ],
+        [
+          600,
+          10
+        ],
+        [
+          900,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 12,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 836.0,
+          "max": 1602.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 411.0,
+          "max": 840.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 2.35745,
+          "max": 322.225,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 198.595,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.12364,
+          "max": 238.196,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202112.csv",
+      "bytes": 489641,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8927,
+      "duplicate_keys": 0,
+      "start": "2021-12-01 00:00:00",
+      "end": "2021-12-31 23:55:00",
+      "unique_timestamps": 8927,
+      "cadence_seconds": [
+        [
+          300,
+          8925
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 774.0,
+          "max": 1710.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 470.0,
+          "max": 987.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 14.3027,
+          "max": 392.529,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 190.265,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.991795,
+          "max": 261.493,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202201.csv",
+      "bytes": 490861,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8893,
+      "duplicate_keys": 0,
+      "start": "2022-01-01 00:00:00",
+      "end": "2022-01-31 23:55:00",
+      "unique_timestamps": 8893,
+      "cadence_seconds": [
+        [
+          300,
+          8890
+        ],
+        [
+          600,
+          1
+        ],
+        [
+          10500,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 35,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1149.0,
+          "max": 1716.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 469.0,
+          "max": 1084.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 6.33159,
+          "max": 394.095,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 226.73,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.42075,
+          "max": 247.287,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202202.csv",
+      "bytes": 447840,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8064,
+      "duplicate_keys": 0,
+      "start": "2022-02-01 00:00:00",
+      "end": "2022-02-28 23:55:00",
+      "unique_timestamps": 8064,
+      "cadence_seconds": [
+        [
+          300,
+          8063
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1073.0,
+          "max": 1628.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 438.0,
+          "max": 1073.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 16.9868,
+          "max": 417.234,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 252.525,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.98582,
+          "max": 234.561,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202203.csv",
+      "bytes": 494323,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8928,
+      "duplicate_keys": 0,
+      "start": "2022-03-01 00:00:00",
+      "end": "2022-03-31 23:55:00",
+      "unique_timestamps": 8928,
+      "cadence_seconds": [
+        [
+          300,
+          8927
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1000.0,
+          "max": 1620.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 383.0,
+          "max": 977.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 3.14437,
+          "max": 421.692,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 254.586,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.89968,
+          "max": 242.394,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202204.csv",
+      "bytes": 464756,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8395,
+      "duplicate_keys": 0,
+      "start": "2022-04-01 00:00:00",
+      "end": "2022-04-30 23:55:00",
+      "unique_timestamps": 8395,
+      "cadence_seconds": [
+        [
+          300,
+          8391
+        ],
+        [
+          600,
+          1
+        ],
+        [
+          37200,
+          1
+        ],
+        [
+          36600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 245,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1005.0,
+          "max": 1470.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 353.0,
+          "max": 870.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 3.73304,
+          "max": 330.028,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 247.916,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 278.654,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202205.csv",
+      "bytes": 493370,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8928,
+      "duplicate_keys": 0,
+      "start": "2022-05-01 00:00:00",
+      "end": "2022-05-31 23:55:00",
+      "unique_timestamps": 8928,
+      "cadence_seconds": [
+        [
+          300,
+          8927
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 868.0,
+          "max": 1340.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 360.0,
+          "max": 804.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 8.70659,
+          "max": 333.662,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 239.887,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 200.246,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202206.csv",
+      "bytes": 477739,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8639,
+      "duplicate_keys": 0,
+      "start": "2022-06-01 00:00:00",
+      "end": "2022-06-30 23:55:00",
+      "unique_timestamps": 8639,
+      "cadence_seconds": [
+        [
+          300,
+          8637
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 792.0,
+          "max": 1383.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 411.0,
+          "max": 985.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 7.78521,
+          "max": 332.297,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 226.663,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 237.934,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202207.csv",
+      "bytes": 495119,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8928,
+      "duplicate_keys": 0,
+      "start": "2022-07-01 00:00:00",
+      "end": "2022-07-31 23:55:00",
+      "unique_timestamps": 8928,
+      "cadence_seconds": [
+        [
+          300,
+          8927
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 910.0,
+          "max": 1446.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 572.0,
+          "max": 1072.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 4.71285,
+          "max": 346.198,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 224.688,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.11664,
+          "max": 246.898,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202208.csv",
+      "bytes": 496587,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8927,
+      "duplicate_keys": 0,
+      "start": "2022-08-01 00:00:00",
+      "end": "2022-08-31 23:55:00",
+      "unique_timestamps": 8927,
+      "cadence_seconds": [
+        [
+          300,
+          8925
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1025.0,
+          "max": 1553.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 564.0,
+          "max": 1135.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 14.0194,
+          "max": 354.775,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 233.573,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.60829,
+          "max": 180.396,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202209.csv",
+      "bytes": 478135,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8639,
+      "duplicate_keys": 0,
+      "start": "2022-09-01 00:00:00",
+      "end": "2022-09-30 23:55:00",
+      "unique_timestamps": 8639,
+      "cadence_seconds": [
+        [
+          300,
+          8637
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 823.0,
+          "max": 1626.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 444.0,
+          "max": 994.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 2.72271,
+          "max": 409.478,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 250.197,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 230.947,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202210.csv",
+      "bytes": 495242,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8925,
+      "duplicate_keys": 0,
+      "start": "2022-10-01 00:00:00",
+      "end": "2022-10-31 23:55:00",
+      "unique_timestamps": 8925,
+      "cadence_seconds": [
+        [
+          300,
+          8921
+        ],
+        [
+          600,
+          3
+        ]
+      ],
+      "missing_slots_within_bounds": 3,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 942.0,
+          "max": 1518.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 395.0,
+          "max": 828.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 2.72175,
+          "max": 344.268,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 246.141,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.637114,
+          "max": 245.926,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202211.csv",
+      "bytes": 477420,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8640,
+      "duplicate_keys": 0,
+      "start": "2022-11-01 00:00:00",
+      "end": "2022-11-30 23:55:00",
+      "unique_timestamps": 8640,
+      "cadence_seconds": [
+        [
+          300,
+          8639
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 982.0,
+          "max": 1395.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 415.0,
+          "max": 908.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 3.0839,
+          "max": 328.85,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 234.36,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 254.115,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202212.csv",
+      "bytes": 490100,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8928,
+      "duplicate_keys": 0,
+      "start": "2022-12-01 00:00:00",
+      "end": "2022-12-31 23:55:00",
+      "unique_timestamps": 8928,
+      "cadence_seconds": [
+        [
+          300,
+          8927
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1056.0,
+          "max": 1643.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 505.0,
+          "max": 1050.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 4.78726,
+          "max": 350.593,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 201.474,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.27768,
+          "max": 243.442,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202301.csv",
+      "bytes": 490660,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8928,
+      "duplicate_keys": 0,
+      "start": "2023-01-01 00:00:00",
+      "end": "2023-01-31 23:55:00",
+      "unique_timestamps": 8928,
+      "cadence_seconds": [
+        [
+          300,
+          8927
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1325.0,
+          "max": 1744.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 427.0,
+          "max": 1071.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 12.7442,
+          "max": 396.942,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 280.542,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.74029,
+          "max": 248.835,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202302.csv",
+      "bytes": 444878,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8063,
+      "duplicate_keys": 0,
+      "start": "2023-02-01 00:00:00",
+      "end": "2023-02-28 23:55:00",
+      "unique_timestamps": 8063,
+      "cadence_seconds": [
+        [
+          300,
+          8061
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1155.0,
+          "max": 1738.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 498.0,
+          "max": 1026.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 7.44868,
+          "max": 405.746,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 307.299,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.85002,
+          "max": 244.801,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202303.csv",
+      "bytes": 494045,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8926,
+      "duplicate_keys": 0,
+      "start": "2023-03-01 00:00:00",
+      "end": "2023-03-31 23:55:00",
+      "unique_timestamps": 8926,
+      "cadence_seconds": [
+        [
+          300,
+          8923
+        ],
+        [
+          600,
+          2
+        ]
+      ],
+      "missing_slots_within_bounds": 2,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 979.0,
+          "max": 1668.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 336.0,
+          "max": 985.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 10.0897,
+          "max": 402.021,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 318.586,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 245.261,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202304.csv",
+      "bytes": 479533,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8636,
+      "duplicate_keys": 0,
+      "start": "2023-04-01 00:00:00",
+      "end": "2023-04-30 23:55:00",
+      "unique_timestamps": 8636,
+      "cadence_seconds": [
+        [
+          300,
+          8631
+        ],
+        [
+          600,
+          4
+        ]
+      ],
+      "missing_slots_within_bounds": 4,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1048.0,
+          "max": 1552.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 390.0,
+          "max": 859.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 6.64101,
+          "max": 398.472,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 319.041,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.89846,
+          "max": 229.943,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202305.csv",
+      "bytes": 494402,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8926,
+      "duplicate_keys": 0,
+      "start": "2023-05-01 00:00:00",
+      "end": "2023-05-31 23:55:00",
+      "unique_timestamps": 8926,
+      "cadence_seconds": [
+        [
+          300,
+          8924
+        ],
+        [
+          900,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 2,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 720.0,
+          "max": 1474.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 428.0,
+          "max": 831.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 6.88914,
+          "max": 363.536,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 327.63,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.205277,
+          "max": 221.718,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202306.csv",
+      "bytes": 479857,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8640,
+      "duplicate_keys": 0,
+      "start": "2023-06-01 00:00:00",
+      "end": "2023-06-30 23:55:00",
+      "unique_timestamps": 8640,
+      "cadence_seconds": [
+        [
+          300,
+          8639
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 867.0,
+          "max": 1551.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 466.0,
+          "max": 935.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 5.85312,
+          "max": 395.851,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 335.34,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 212.712,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202307.csv",
+      "bytes": 477711,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8606,
+      "duplicate_keys": 0,
+      "start": "2023-07-01 00:00:00",
+      "end": "2023-07-31 23:55:00",
+      "unique_timestamps": 8606,
+      "cadence_seconds": [
+        [
+          300,
+          8602
+        ],
+        [
+          96000,
+          1
+        ],
+        [
+          900,
+          1
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 322,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1065.0,
+          "max": 1662.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 573.0,
+          "max": 1062.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 10.6885,
+          "max": 436.948,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 316.482,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 209.171,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202308.csv",
+      "bytes": 498730,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8926,
+      "duplicate_keys": 0,
+      "start": "2023-08-01 00:00:00",
+      "end": "2023-08-31 23:55:00",
+      "unique_timestamps": 8926,
+      "cadence_seconds": [
+        [
+          300,
+          8923
+        ],
+        [
+          600,
+          2
+        ]
+      ],
+      "missing_slots_within_bounds": 2,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1267.0,
+          "max": 1772.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 567.0,
+          "max": 1132.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 7.4585,
+          "max": 502.532,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 294.171,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 225.552,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202309.csv",
+      "bytes": 478986,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8638,
+      "duplicate_keys": 0,
+      "start": "2023-09-01 00:00:00",
+      "end": "2023-09-30 23:55:00",
+      "unique_timestamps": 8638,
+      "cadence_seconds": [
+        [
+          300,
+          8635
+        ],
+        [
+          600,
+          2
+        ]
+      ],
+      "missing_slots_within_bounds": 2,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1114.0,
+          "max": 1596.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 501.0,
+          "max": 1009.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 6.78718,
+          "max": 419.582,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 313.779,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.60127,
+          "max": 200.152,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202310.csv",
+      "bytes": 494893,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8928,
+      "duplicate_keys": 0,
+      "start": "2023-10-01 00:00:00",
+      "end": "2023-10-31 23:55:00",
+      "unique_timestamps": 8928,
+      "cadence_seconds": [
+        [
+          300,
+          8927
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 899.0,
+          "max": 1583.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 464.0,
+          "max": 767.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 12.0234,
+          "max": 409.315,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 326.716,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.12384,
+          "max": 234.514,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202311.csv",
+      "bytes": 474888,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8640,
+      "duplicate_keys": 0,
+      "start": "2023-11-01 00:00:00",
+      "end": "2023-11-30 23:55:00",
+      "unique_timestamps": 8640,
+      "cadence_seconds": [
+        [
+          300,
+          8639
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 895.0,
+          "max": 1517.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 499.0,
+          "max": 907.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 12.8531,
+          "max": 406.831,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 306.045,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.59424,
+          "max": 255.427,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202312.csv",
+      "bytes": 488612,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8927,
+      "duplicate_keys": 0,
+      "start": "2023-12-01 00:00:00",
+      "end": "2023-12-31 23:55:00",
+      "unique_timestamps": 8927,
+      "cadence_seconds": [
+        [
+          300,
+          8925
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1059.0,
+          "max": 2172.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 514.0,
+          "max": 1758.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 6.54152,
+          "max": 1076.44,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 284.392,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.405417,
+          "max": 1058.38,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202401.csv",
+      "bytes": 489634,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8922,
+      "duplicate_keys": 0,
+      "start": "2024-01-01 00:00:00",
+      "end": "2024-01-31 23:50:00",
+      "unique_timestamps": 8922,
+      "cadence_seconds": [
+        [
+          300,
+          8917
+        ],
+        [
+          600,
+          3
+        ],
+        [
+          900,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 5,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1131.0,
+          "max": 1774.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 547.0,
+          "max": 1078.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 5.3568,
+          "max": 455.632,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 306.825,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.511907,
+          "max": 260.344,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202402.csv",
+      "bytes": 457870,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8344,
+      "duplicate_keys": 0,
+      "start": "2024-02-01 00:00:00",
+      "end": "2024-02-29 23:50:00",
+      "unique_timestamps": 8344,
+      "cadence_seconds": [
+        [
+          300,
+          8336
+        ],
+        [
+          600,
+          7
+        ]
+      ],
+      "missing_slots_within_bounds": 7,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1116.0,
+          "max": 1746.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 514.0,
+          "max": 1049.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 2.36399,
+          "max": 427.6,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 329.656,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.334404,
+          "max": 261.909,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202403.csv",
+      "bytes": 492032,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8912,
+      "duplicate_keys": 0,
+      "start": "2024-03-01 00:00:00",
+      "end": "2024-03-31 23:55:00",
+      "unique_timestamps": 8912,
+      "cadence_seconds": [
+        [
+          300,
+          8902
+        ],
+        [
+          600,
+          8
+        ],
+        [
+          2700,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 16,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1089.0,
+          "max": 1626.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 504.0,
+          "max": 996.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 4.97748,
+          "max": 481.158,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 371.526,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.058606,
+          "max": 279.619,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202404.csv",
+      "bytes": 475682,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8626,
+      "duplicate_keys": 0,
+      "start": "2024-04-01 00:00:00",
+      "end": "2024-04-30 23:50:00",
+      "unique_timestamps": 8626,
+      "cadence_seconds": [
+        [
+          300,
+          8612
+        ],
+        [
+          600,
+          13
+        ]
+      ],
+      "missing_slots_within_bounds": 13,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 0.0,
+          "max": 1584.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 444.0,
+          "max": 960.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 0.0,
+          "max": 397.907,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 345.695,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 249.019,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202405.csv",
+      "bytes": 495218,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8917,
+      "duplicate_keys": 0,
+      "start": "2024-05-01 00:00:00",
+      "end": "2024-05-31 23:55:00",
+      "unique_timestamps": 8917,
+      "cadence_seconds": [
+        [
+          300,
+          8905
+        ],
+        [
+          600,
+          11
+        ]
+      ],
+      "missing_slots_within_bounds": 11,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1000.0,
+          "max": 1522.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 474.0,
+          "max": 780.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 11.7884,
+          "max": 441.281,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 351.454,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 303.503,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202406.csv",
+      "bytes": 477147,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8632,
+      "duplicate_keys": 0,
+      "start": "2024-06-01 00:00:00",
+      "end": "2024-06-30 23:55:00",
+      "unique_timestamps": 8632,
+      "cadence_seconds": [
+        [
+          300,
+          8623
+        ],
+        [
+          600,
+          8
+        ]
+      ],
+      "missing_slots_within_bounds": 8,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 955.0,
+          "max": 1581.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 442.0,
+          "max": 877.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 5.3159,
+          "max": 415.886,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 336.995,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 243.451,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202407.csv",
+      "bytes": 495005,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8912,
+      "duplicate_keys": 0,
+      "start": "2024-07-01 00:00:00",
+      "end": "2024-07-31 23:50:00",
+      "unique_timestamps": 8912,
+      "cadence_seconds": [
+        [
+          300,
+          8898
+        ],
+        [
+          600,
+          12
+        ],
+        [
+          1200,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 15,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1264.0,
+          "max": 1730.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 563.0,
+          "max": 1154.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 2.62148,
+          "max": 450.035,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 295.294,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 266.819,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202408.csv",
+      "bytes": 498078,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8910,
+      "duplicate_keys": 0,
+      "start": "2024-08-01 00:00:00",
+      "end": "2024-08-31 23:55:00",
+      "unique_timestamps": 8910,
+      "cadence_seconds": [
+        [
+          300,
+          8893
+        ],
+        [
+          600,
+          15
+        ],
+        [
+          1200,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 18,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1211.0,
+          "max": 1771.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 622.0,
+          "max": 1255.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 2.44391,
+          "max": 506.193,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 323.075,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 247.91,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202409.csv",
+      "bytes": 477506,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8633,
+      "duplicate_keys": 0,
+      "start": "2024-09-01 00:00:00",
+      "end": "2024-09-30 23:55:00",
+      "unique_timestamps": 8633,
+      "cadence_seconds": [
+        [
+          300,
+          8625
+        ],
+        [
+          600,
+          7
+        ]
+      ],
+      "missing_slots_within_bounds": 7,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 974.0,
+          "max": 1613.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 470.0,
+          "max": 1188.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 9.32041,
+          "max": 403.763,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 298.621,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 261.259,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202410.csv",
+      "bytes": 491364,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8919,
+      "duplicate_keys": 0,
+      "start": "2024-10-01 00:00:00",
+      "end": "2024-10-31 23:55:00",
+      "unique_timestamps": 8919,
+      "cadence_seconds": [
+        [
+          300,
+          8909
+        ],
+        [
+          600,
+          9
+        ]
+      ],
+      "missing_slots_within_bounds": 9,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 985.0,
+          "max": 1517.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 497.0,
+          "max": 872.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 7.21388,
+          "max": 411.029,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 294.744,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.43454,
+          "max": 313.191,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202411.csv",
+      "bytes": 474432,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8625,
+      "duplicate_keys": 0,
+      "start": "2024-11-01 00:00:00",
+      "end": "2024-11-30 23:55:00",
+      "unique_timestamps": 8625,
+      "cadence_seconds": [
+        [
+          300,
+          8610
+        ],
+        [
+          600,
+          13
+        ],
+        [
+          900,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 15,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 969.0,
+          "max": 1624.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 462.0,
+          "max": 887.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 0.413831,
+          "max": 502.041,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 304.404,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.106766,
+          "max": 345.539,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202412.csv",
+      "bytes": 489494,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8914,
+      "duplicate_keys": 0,
+      "start": "2024-12-01 00:00:00",
+      "end": "2024-12-31 23:55:00",
+      "unique_timestamps": 8914,
+      "cadence_seconds": [
+        [
+          300,
+          8899
+        ],
+        [
+          600,
+          14
+        ]
+      ],
+      "missing_slots_within_bounds": 14,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1142.0,
+          "max": 1770.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 542.0,
+          "max": 943.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 0.969616,
+          "max": 549.268,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 298.193,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 361.535,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202501.csv",
+      "bytes": 490368,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8916,
+      "duplicate_keys": 0,
+      "start": "2025-01-01 00:00:00",
+      "end": "2025-01-31 23:55:00",
+      "unique_timestamps": 8916,
+      "cadence_seconds": [
+        [
+          300,
+          8903
+        ],
+        [
+          600,
+          12
+        ]
+      ],
+      "missing_slots_within_bounds": 12,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1156.0,
+          "max": 1799.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 534.0,
+          "max": 1064.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 2.03995,
+          "max": 500.706,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 333.55,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 340.216,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202502.csv",
+      "bytes": 443267,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8053,
+      "duplicate_keys": 0,
+      "start": "2025-02-01 00:00:00",
+      "end": "2025-02-28 23:55:00",
+      "unique_timestamps": 8053,
+      "cadence_seconds": [
+        [
+          300,
+          8041
+        ],
+        [
+          600,
+          11
+        ]
+      ],
+      "missing_slots_within_bounds": 11,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1204.0,
+          "max": 1921.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 507.0,
+          "max": 1108.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 7.78871,
+          "max": 608.771,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 373.72,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 366.533,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202503.csv",
+      "bytes": 491059,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8905,
+      "duplicate_keys": 0,
+      "start": "2025-03-01 00:00:00",
+      "end": "2025-03-31 23:55:00",
+      "unique_timestamps": 8905,
+      "cadence_seconds": [
+        [
+          300,
+          8881
+        ],
+        [
+          600,
+          23
+        ]
+      ],
+      "missing_slots_within_bounds": 23,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1004.0,
+          "max": 1948.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 466.0,
+          "max": 976.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 6.8831,
+          "max": 607.138,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 384.471,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 333.611,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202504.csv",
+      "bytes": 477480,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8622,
+      "duplicate_keys": 0,
+      "start": "2025-04-01 00:00:00",
+      "end": "2025-04-30 23:50:00",
+      "unique_timestamps": 8622,
+      "cadence_seconds": [
+        [
+          300,
+          8604
+        ],
+        [
+          600,
+          17
+        ]
+      ],
+      "missing_slots_within_bounds": 17,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1101.0,
+          "max": 1738.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 446.0,
+          "max": 871.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 12.0154,
+          "max": 628.619,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 405.836,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 318.214,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202505.csv",
+      "bytes": 491833,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8874,
+      "duplicate_keys": 0,
+      "start": "2025-05-01 00:00:00",
+      "end": "2025-05-31 23:50:00",
+      "unique_timestamps": 8874,
+      "cadence_seconds": [
+        [
+          300,
+          8854
+        ],
+        [
+          600,
+          12
+        ],
+        [
+          900,
+          5
+        ],
+        [
+          7200,
+          1
+        ],
+        [
+          2700,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 53,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 968.0,
+          "max": 1732.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 374.0,
+          "max": 795.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 3.59841,
+          "max": 528.912,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 386.878,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 321.875,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202506.csv",
+      "bytes": 477036,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8624,
+      "duplicate_keys": 0,
+      "start": "2025-06-01 00:00:00",
+      "end": "2025-06-30 23:55:00",
+      "unique_timestamps": 8624,
+      "cadence_seconds": [
+        [
+          300,
+          8608
+        ],
+        [
+          600,
+          14
+        ],
+        [
+          900,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 16,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 945.0,
+          "max": 1656.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 454.0,
+          "max": 1016.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 12.0499,
+          "max": 524.623,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 381.806,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 295.577,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202507.csv",
+      "bytes": 495093,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8909,
+      "duplicate_keys": 0,
+      "start": "2025-07-01 00:00:00",
+      "end": "2025-07-31 23:50:00",
+      "unique_timestamps": 8909,
+      "cadence_seconds": [
+        [
+          300,
+          8891
+        ],
+        [
+          600,
+          16
+        ],
+        [
+          900,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 18,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1281.0,
+          "max": 2005.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 561.0,
+          "max": 1139.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 3.58969,
+          "max": 524.856,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 369.551,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 281.443,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202508.csv",
+      "bytes": 495246,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8911,
+      "duplicate_keys": 0,
+      "start": "2025-08-01 00:00:00",
+      "end": "2025-08-31 23:50:00",
+      "unique_timestamps": 8911,
+      "cadence_seconds": [
+        [
+          300,
+          8899
+        ],
+        [
+          600,
+          8
+        ],
+        [
+          900,
+          2
+        ],
+        [
+          1500,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 16,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1397.0,
+          "max": 1998.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 612.0,
+          "max": 1167.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 2.48418,
+          "max": 538.495,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 360.265,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.47303,
+          "max": 261.466,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202509.csv",
+      "bytes": 477304,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8623,
+      "duplicate_keys": 0,
+      "start": "2025-09-01 00:00:00",
+      "end": "2025-09-30 23:50:00",
+      "unique_timestamps": 8623,
+      "cadence_seconds": [
+        [
+          300,
+          8606
+        ],
+        [
+          600,
+          16
+        ]
+      ],
+      "missing_slots_within_bounds": 16,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1303.0,
+          "max": 1954.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 530.0,
+          "max": 1106.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 7.10791,
+          "max": 476.279,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 354.94,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.676628,
+          "max": 207.802,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202510.csv",
+      "bytes": 491642,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8906,
+      "duplicate_keys": 0,
+      "start": "2025-10-01 00:00:00",
+      "end": "2025-10-31 23:55:00",
+      "unique_timestamps": 8906,
+      "cadence_seconds": [
+        [
+          300,
+          8884
+        ],
+        [
+          600,
+          20
+        ],
+        [
+          900,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 22,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1161.0,
+          "max": 1838.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 411.0,
+          "max": 923.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 13.5566,
+          "max": 574.863,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 378.743,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.30486,
+          "max": 310.966,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202511.csv",
+      "bytes": 474800,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8622,
+      "duplicate_keys": 0,
+      "start": "2025-11-01 00:00:00",
+      "end": "2025-11-30 23:55:00",
+      "unique_timestamps": 8622,
+      "cadence_seconds": [
+        [
+          300,
+          8605
+        ],
+        [
+          600,
+          14
+        ],
+        [
+          900,
+          2
+        ]
+      ],
+      "missing_slots_within_bounds": 18,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1064.0,
+          "max": 1910.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 405.0,
+          "max": 820.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 3.85317,
+          "max": 558.651,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 380.41,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.954,
+          "max": 337.598,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202512.csv",
+      "bytes": 489701,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8910,
+      "duplicate_keys": 0,
+      "start": "2025-12-01 00:00:00",
+      "end": "2025-12-31 23:50:00",
+      "unique_timestamps": 8910,
+      "cadence_seconds": [
+        [
+          300,
+          8892
+        ],
+        [
+          600,
+          17
+        ]
+      ],
+      "missing_slots_within_bounds": 17,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1167.0,
+          "max": 1898.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 490.0,
+          "max": 982.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 3.32868,
+          "max": 580.904,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 337.737,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 1.25515,
+          "max": 355.11,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202601.csv",
+      "bytes": 490020,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8902,
+      "duplicate_keys": 0,
+      "start": "2026-01-01 00:00:00",
+      "end": "2026-01-31 23:50:00",
+      "unique_timestamps": 8902,
+      "cadence_seconds": [
+        [
+          300,
+          8878
+        ],
+        [
+          600,
+          21
+        ],
+        [
+          900,
+          2
+        ]
+      ],
+      "missing_slots_within_bounds": 25,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 1256.0,
+          "max": 2118.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 495.0,
+          "max": 1065.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 3.08066,
+          "max": 604.446,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 370.506,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 2.11213,
+          "max": 357.121,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202602.csv",
+      "bytes": 442853,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8042,
+      "duplicate_keys": 0,
+      "start": "2026-02-01 00:00:00",
+      "end": "2026-02-28 23:55:00",
+      "unique_timestamps": 8042,
+      "cadence_seconds": [
+        [
+          300,
+          8022
+        ],
+        [
+          600,
+          16
+        ],
+        [
+          900,
+          3
+        ]
+      ],
+      "missing_slots_within_bounds": 22,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 0.0,
+          "max": 2062.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 0.0,
+          "max": 1025.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 0.0,
+          "max": 623.313,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 399.906,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 332.282,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202603.csv",
+      "bytes": 492123,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8910,
+      "duplicate_keys": 0,
+      "start": "2026-03-01 00:00:00",
+      "end": "2026-03-31 23:55:00",
+      "unique_timestamps": 8910,
+      "cadence_seconds": [
+        [
+          300,
+          8892
+        ],
+        [
+          600,
+          16
+        ],
+        [
+          900,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 18,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 0.0,
+          "max": 1840.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 0.0,
+          "max": 941.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 0.0,
+          "max": 573.241,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 427.036,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 335.112,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202604.csv",
+      "bytes": 477299,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8639,
+      "duplicate_keys": 0,
+      "start": "2026-04-01 00:00:00",
+      "end": "2026-04-30 23:55:00",
+      "unique_timestamps": 8639,
+      "cadence_seconds": [
+        [
+          300,
+          8637
+        ],
+        [
+          600,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 1,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 0.0,
+          "max": 1652.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 0.0,
+          "max": 1920.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 0.0,
+          "max": 588.665,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 456.186,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 298.833,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202605.csv",
+      "bytes": 495712,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8928,
+      "duplicate_keys": 0,
+      "start": "2026-05-01 00:00:00",
+      "end": "2026-05-31 23:55:00",
+      "unique_timestamps": 8928,
+      "cadence_seconds": [
+        [
+          300,
+          8927
+        ]
+      ],
+      "missing_slots_within_bounds": 0,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 0.0,
+          "max": 1587.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 0.0,
+          "max": 833.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 0.0,
+          "max": 513.924,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 447.808,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 279.12,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202606.csv",
+      "bytes": 461767,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8332,
+      "duplicate_keys": 0,
+      "start": "2026-06-01 00:00:00",
+      "end": "2026-06-30 23:50:00",
+      "unique_timestamps": 8332,
+      "cadence_seconds": [
+        [
+          300,
+          8311
+        ],
+        [
+          600,
+          19
+        ],
+        [
+          86700,
+          1
+        ]
+      ],
+      "missing_slots_within_bounds": 307,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 0.0,
+          "max": 1678.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 43.0,
+          "max": 853.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 0.0,
+          "max": 501.025,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 441.999,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 265.231,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202607.csv",
+      "bytes": 495999,
+      "columns": [
+        "timestamp",
+        "supply_mw",
+        "demand_mw",
+        "renewable_total_mw",
+        "solar_mw",
+        "wind_mw"
+      ],
+      "rows": 8895,
+      "duplicate_keys": 1,
+      "start": "2026-07-01 00:00:00",
+      "end": "2026-07-31 23:50:00",
+      "unique_timestamps": 8894,
+      "cadence_seconds": [
+        [
+          300,
+          8863
+        ],
+        [
+          600,
+          27
+        ],
+        [
+          900,
+          3
+        ]
+      ],
+      "missing_slots_within_bounds": 33,
+      "blank_values": {
+        "timestamp": 0,
+        "supply_mw": 0,
+        "demand_mw": 0,
+        "renewable_total_mw": 0,
+        "solar_mw": 0,
+        "wind_mw": 0
+      },
+      "ranges": {
+        "supply_mw": {
+          "min": 0.0,
+          "max": 1992.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "demand_mw": {
+          "min": 0.0,
+          "max": 1176.0,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "renewable_total_mw": {
+          "min": 0.0,
+          "max": 551.299,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "solar_mw": {
+          "min": 0.0,
+          "max": 399.499,
+          "negative": 0,
+          "nonfinite": 0
+        },
+        "wind_mw": {
+          "min": 0.0,
+          "max": 276.01,
+          "negative": 0,
+          "nonfinite": 0
+        }
+      }
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202608.csv",
+      "bytes": 496698,
+      "error": "Permission denied (file mode 0600)"
+    },
+    {
+      "path": "/mnt/iscsi-renewable/jeju_data/sukub/jeju_sukub_202609.csv",
+      "bytes": 456498,
+      "error": "Permission denied (file mode 0600)"
+    }
+  ]
+}
