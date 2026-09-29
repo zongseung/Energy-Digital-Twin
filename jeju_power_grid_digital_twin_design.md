@@ -142,7 +142,7 @@ flowchart LR
 
 초기에는 Rust API 서버 하나와 선택한 표시 클라이언트 하나로 시작한다. 추가 사용자 요구에 따라 Redis 캐시와 WebSocket을 사용하고 Docker로 실행한다(16절). 기존 PostgreSQL/PostGIS를 재사용하며 추가 메시지 브로커·새 시계열 DB·분산 실행·모델 플러그인 시스템은 만들지 않는다. Rust 의존성은 선택한 MSRV와 호환되는 버전을 고정하고 lockfile로 재현한다. 현재 Rust 1.96.0 설치 사실은 확인했지만 API 의존성 빌드나 선택한 렌더러 연동까지 검증한 상태는 아니다.
 
-DB 접속정보는 서버 환경에서 읽고 클라이언트에는 API 주소만 전달한다. 1차 접속 범위는 서버와 표시 PC가 연결된 개발 네트워크로 둔다. 공개 서비스 배포는 별도 요구사항으로 다룬다.
+DB 접속정보는 기존 데이터 서버의 Rust 서비스에서 읽고 GPU 서버에는 API 주소만 전달한다. 사용자 선택에 따라 iSCSI·DB·Redis·Rust API는 기존 서버에 유지하고, A6000 서버에는 HTTP/WebSocket으로 필요한 데이터를 전달한다. 첫 연결은 18.6절의 SSH 터널로 구성하며 공개 서비스 배포는 별도 요구사항으로 다룬다.
 
 ### 7.1 좌표와 3D 자산
 
@@ -421,6 +421,7 @@ VWorld 공식 예제에는 `viewer.entities.add`의 model URI로 자체 GLB를 �
 
 - 프로젝트 `.env`의 `higs_key`, `vworld_key`는 비어 있지 않다. `higs_key`는 공식 인증 예제의 `ID:Secret` 형태와 일치한다. 값은 출력하지 않았고 실제 인증·기능 접근·잔액은 확인하지 않았다.
 - 현재 `.env`에는 DB 연결 문자열과 `REDIS_URL` 설정이 없다. Rust 프로젝트의 `Cargo.toml`과 Docker Compose 파일도 아직 없다.
+- 후속 접속 점검에서 사용자가 `.env`에 추가한 `password`로 `user@192.9.59.208:10000` SSH 인증에 성공했다. 이 값은 SSH 접속에만 사용하고 Rust 컨테이너나 GPU 서버로 `.env` 전체를 복사하지 않는다. 원격 GPU 관측 결과는 18.6절에 기록한다.
 - 기존 `energy-hub-db`, `demand-postgres`, `pv-data-postgres`, `energy-hub-redis` 컨테이너가 실행 중이다. Redis는 `src_energy-hub-net`, Demand/PV DB는 `pv-pipeline-network`에 있고 Hub DB는 두 네트워크에 있다.
 - 기존 Redis의 설정은 256MiB·`allkeys-lru`다. 재사용 시 `edt:dev:v1:` namespace와 짧은 TTL·응답 크기 제한을 적용한다. 공용 캐시의 자원 영향은 실제 부하에서 확인하며 설정 변경이나 전체 flush로 관리하지 않는다.
 - 현재 `nvidia-smi`는 드라이버 통신에 실패한다. 아래 CPU 서버 구성의 착수 조건에는 서버 GPU를 넣지 않는다.
@@ -435,7 +436,7 @@ GPU 추론은 모델의 Python/CUDA 구현을 별도 Docker 배치 작업으로 
 
 “개발 키를 Docker로 띄운다”는 요청은 **개발 서비스를 Docker로 띄우고 키를 실행 시 주입한다**는 구성으로 반영한다. Compose의 `.env`는 값 치환에 쓰이며, 컨테이너 전달은 `environment` 또는 `env_file`로 지정해야 한다. 기존 `higs_key`는 새 실행 경로에서 사용하지 않는다. `vworld_key`는 보조 API를 사용할 경우에만 명시적으로 주입한다. DB 접속에는 `HUB_DATABASE_URL`, `DEMAND_DATABASE_URL`, 캐시에는 `REDIS_URL`을 추가하고, 검증한 개별 발전 조회를 넣을 때 `PV_DATABASE_URL`을 추가한다. [Compose 환경 변수](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/).
 
-원천과 같은 호스트의 Rust 서비스는 기존 Docker 네트워크를 external로 참조해 DB/Redis의 이름과 컨테이너 포트를 사용한다. 다른 GPU 호스트로 옮기는 경우 이 네트워크 이름이 통하지 않으므로 연결 주소·터널/내부망 접근을 새로 검증한다. 컨테이너 안의 `localhost:5437`은 호스트의 Hub DB가 아니다. 기존 DB를 새로 띄우거나 iSCSI PostgreSQL 저장 디렉터리를 새 서버에 마운트해 여는 방식은 쓰지 않는다. [Compose 네트워크](https://docs.docker.com/compose/how-tos/networking/).
+원천과 같은 호스트의 Rust 서비스는 기존 Docker 네트워크를 external로 참조해 DB/Redis의 이름과 컨테이너 포트를 사용한다. GPU 서버에는 API 결과를 전달하며 DB/Redis를 직접 연결하지 않는다. 기존 Docker 네트워크 이름은 다른 호스트로 연결되지 않으며, 컨테이너 안의 `localhost:5437`은 호스트의 Hub DB가 아니다. 기존 DB를 새로 띄우거나 iSCSI PostgreSQL 저장 디렉터리를 새 서버에 마운트해 여는 방식은 쓰지 않는다. [Compose 네트워크](https://docs.docker.com/compose/how-tos/networking/).
 
 DB/Redis 인증정보는 Rust 서비스에만 주입한다. 브라우저에는 공개 가능한 API 주소와 필요한 클라이언트 설정만 전달한다. `.env`는 이미지의 `COPY` 대상과 Git에 포함하지 않는다. `docker compose config`의 전체 출력처럼 치환한 키가 노출되는 검증은 피한다.
 
@@ -594,11 +595,11 @@ TRELLIS.2의 공식 속도 표는 H100 기준이므로 A6000의 처리시간으�
 
 두 GPU를 한 추론에 묶는 최적화는 첫 자산 시험 뒤 필요할 때만 한다. 96GB를 하나의 VRAM처럼 자동 사용할 수 있다고 가정하지 않는다. GPU 컨테이너는 사용할 장치만 노출하고 VRAM·온도·실행시간을 실제 측정한다. A6000 제원 충족은 CUDA extension 빌드·모든 해상도·모든 장면의 성공 보장이 아니다.
 
-이전 대상에서 GPU 이름/메모리·드라이버·Docker GPU 노출·모델의 PyTorch/CUDA 조합을 확인한다. 모델과 출력 파일은 영속 디렉터리에 보존하고, 매 컨테이너 재시작마다 다운로드하지 않는다. 원천 DB를 기존 서버에 유지할 수 있으며 GPU 작업에는 사진·자산만 전달하면 된다. Rust/렌더러도 다른 호스트로 옮기면 기존 Docker service DNS와 `127.0.0.1` DB 포트가 원격에서 통하지 않으므로 내부망/터널과 실제 연결 주소를 검증한다.
+이전 대상의 GPU 이름/메모리·드라이버는 SSH로 확인했다(18.6절). Docker GPU 노출과 모델의 PyTorch/CUDA 조합은 추가 검증한다. 모델과 출력 파일은 영속 디렉터리에 보존하고, 매 컨테이너 재시작마다 다운로드하지 않는다. 원천 DB·Redis·Rust는 기존 서버에 유지하고 GPU 서버에는 필요한 API 데이터와 사진·자산을 전달한다.
 
 iSCSI는 다른 서버의 initiator에도 네트워크·대상 ACL·필요한 인증이 허용되면 연결할 수 있다. 다만 현재 `/mnt/iscsi`와 `/mnt/iscsi-renewable`은 ext4이며, 작업 세션의 `findmnt`에는 각각 `/dev/sdb`, `/dev/sdc`와 `ro`로 보인다. 이 관측은 다른 호스트의 쓰기 여부나 새 서버의 접근 허용을 확인한 결과가 아니다. 같은 LUN의 ext4를 두 서버가 동시에 쓰지 않으며, 한쪽을 읽기 전용으로 붙여도 다른 쪽이 쓰는 동안 안전한 공유 파일시스템이 되는 것은 아니다. [iSCSI ACL·인증](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/managing_storage_devices/configuring-an-iscsi-target_managing-storage-devices), [ext4 공유 디스크 문제 사례](https://access.redhat.com/solutions/410173).
 
-첫 이전안은 iSCSI·DB를 기존 서버에 유지하고 A6000 서버가 검증된 내부망/터널의 DB 또는 Rust API로 조회하는 방식이다. 사진·GLB/USD 같은 일반 파일만 복사하거나 별도 파일 공유로 전달한다. 저장소 자체를 옮겨야 하면 관련 DB/수집기를 정상 종료하고 기존 마운트·세션을 해제한 뒤 새 호스트에 연결하는 별도 이전 작업으로 수행한다. 이 검토에서는 연결·마운트·서비스를 변경하지 않았다.
+사용자가 선택한 구성은 iSCSI·DB를 기존 서버에 유지하고 A6000 서버로 Rust API의 결과를 전달하는 방식이다. 사진·GLB/USD 같은 일반 파일만 별도로 전달한다. 저장소 자체를 옮겨야 하면 관련 DB/수집기를 정상 종료하고 기존 마운트·세션을 해제한 뒤 새 호스트에 연결하는 별도 이전 작업으로 수행한다. 이번 점검에서는 SSH 읽기 전용 조회만 수행했으며 iSCSI 연결·마운트·서비스는 변경하지 않았다.
 
 ### 18.3 호환성 요구사항의 표현
 
@@ -629,4 +630,33 @@ iSCSI는 다른 서버의 initiator에도 네트워크·대상 ACL·필요한 �
 - 대표 시설의 앞/옆/뒤 시점, 1m 기준체, 시설 선택, 재질/텍스처 누락, 모델 node 수, 두 실제 시점의 API 값·WS 재접속을 검사한다. 엔진·plugin·GPU driver 버전을 기록하고 통과한 조합만 지원 목록에 올린다.
 - Gaussian Splatting을 추가한다면 별도의 표현/renderer 검증을 수행한다. GSplat을 GLB mesh와 동일한 충돌·선택·재질 호환 자산으로 취급하지 않는다.
 
-현재 완료 범위는 공식 모델/제원/라이선스/엔진 문서 조사와 설계 변경이다. 새 GPU 서버 이전, 모델 다운로드·추론·GLB/USD 변환, 세 엔진 실행·엔터프라이즈 기능 시험은 아직 수행하지 않았다.
+현재 완료 범위는 공식 모델/제원/라이선스/엔진 문서 조사, 설계 변경, 원격 SSH 인증과 GPU 정보 확인이다. 모델 다운로드·추론·GLB/USD 변환, 세 엔진 실행·엔터프라이즈 기능 시험은 아직 수행하지 않았다.
+
+### 18.6 확정한 서버 분리와 SSH 전달 경로
+
+사용자가 제공한 접속 주소는 `ssh -p 10000 user@192.9.59.208`이다. 2026-09-29에 `.env`의 SSH 인증정보로 접속해 `nvidia-smi`를 읽기 전용 실행했다. 원격 NVIDIA RTX A6000 두 장은 각각 49,140MiB이며 드라이버는 `535.183.01`이다. 컨테이너 GPU 접근·추론 성능·렌더러 동작은 아직 확인하지 않았다.
+
+```text
+기존 서버: iSCSI → PostgreSQL → Rust API·계산 ↔ Redis
+                                  │ HTTP / WebSocket
+                                  │ SSH 암호화 터널
+A6000 서버: 초기 상태 조회·최신 상태 구독 → 3D 장면 갱신
+            GPU 0: 자산 생성 / GPU 1: 렌더링
+```
+
+Rust 서비스는 기존 서버의 `127.0.0.1:8090`에 공개한다. 기존 서버에서 A6000 서버로 SSH 연결을 열어 원격 loopback의 `18090`을 Rust API로 전달하는 개발 구성을 사용한다. SSH 포트 `10000`은 HTTP/WS 서비스 포트가 아니다. 초기 GIS·상태·과거 자료는 HTTP로 조회하고, WS 연결 후에는 Rust가 변경된 관측을 전송한다.
+
+Rust API 실행 후 기존 서버에서 사용할 대화형 터널 명령 예시:
+
+```bash
+ssh -p 10000 -NT -o StrictHostKeyChecking=yes \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+  -R 127.0.0.1:18090:127.0.0.1:8090 user@192.9.59.208
+```
+
+A6000 호스트의 렌더러는 `http://127.0.0.1:18090`과 `ws://127.0.0.1:18090/api/v1/jeju/ws`를 사용한다. 이 loopback 주소 사이의 서버 간 전송은 SSH로 암호화한다. 컨테이너 안의 loopback은 호스트와 다르므로, 렌더러를 컨테이너로 실행하면 호스트 터널에 도달하는 네트워크 구성을 별도로 검증한다. `.env`를 SSH가 자동으로 읽는 것은 아니며 인증정보를 명령 인자나 문서에 넣지 않는다.
+
+SSH 인증 성공과 포트 전달 허용은 별개다. 실제 터널 설정 때 SSH forwarding 허용·원격 listener의 loopback 바인딩·포트 충돌을 확인한다. `ExitOnForwardFailure`는 전달 대상 API의 health를 보장하지 않으므로 GPU 호스트에서 `/api/v1/health`·실제 snapshot·WS 갱신/재접속을 따로 검사한다. [OpenSSH 원격 포트 전달](https://man.openbsd.org/ssh.1#R), [전달 실패 옵션](https://man.openbsd.org/ssh_config.5#ExitOnForwardFailure).
+
+현재 확인한 것은 SSH 접속과 GPU 제원이다. Rust API·상시 터널·HTTP/WS 데이터 전송은 아직 실행하지 않았다. 마운트, 방화벽, 원격 서비스 설정은 변경하지 않았다.

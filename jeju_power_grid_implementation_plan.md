@@ -4,7 +4,7 @@
 
 **Goal:** 기존 제주 DB에 연결한 CPU 기반 Rust API·Redis·WebSocket·지역 수급/ESS 시뮬레이션을 Docker에서 실행하고, A6000에서 생성한 GLB/OpenUSD 자산을 렌더링 엔진에 연결한다.
 
-**Architecture:** Rust 서비스 하나에서 데이터 조회와 시뮬레이션을 제공한다. PostgreSQL/PostGIS와 Redis는 기존 컨테이너를 재사용한다. 사진 기반 자산은 GPU의 Python 추론 컨테이너에서 생성하며 백엔드는 그 실행부와 독립적으로 검증한다. TRELLIS.2와 Omniverse 우선 연동은 v0.3의 추천안으로, 해당 전제에서 Tasks 5–6을 계획한다.
+**Architecture:** 기존 데이터 서버의 Rust 서비스 하나에서 데이터 조회와 시뮬레이션을 제공한다. iSCSI·PostgreSQL/PostGIS·Redis는 기존 서버에 유지한다. `user@192.9.59.208:10000`의 A6000 서버에는 SSH 터널을 통한 HTTP/WebSocket 결과를 전달한다. 사진 기반 자산은 GPU의 Python 추론 컨테이너에서 생성하며 백엔드는 그 실행부와 독립적으로 검증한다. TRELLIS.2와 Omniverse 우선 연동은 v0.3의 추천안으로, 해당 전제에서 Tasks 5–6을 계획한다.
 
 **Tech Stack:** Rust edition 2024, 현재 설치된 Rust 1.96.0; axum/ws, tokio, serde/serde_json, sqlx/Postgres, redis/async, chrono, tracing. 단일 Cargo package와 Docker Compose. 자산 제작은 별도 Python/CUDA 배치 컨테이너, 교환 자산은 GLB/OpenUSD. 의존성의 실제 호환 버전은 첫 빌드에서 확정하고 Cargo.lock에 고정한다.
 
@@ -16,14 +16,14 @@
 
 - 작업 루트는 `/home/dlwhdtmd/energy-digital-twin`이다. 커밋 전 재확인에서 `git rev-parse --show-toplevel`이 이 프로젝트 경로를 반환하므로 독립 저장소 경계가 확인됐다. 프로젝트 파일만 stage/commit하며 `.env`는 제외한다.
 - 원천 DB에는 SELECT만 수행한다. 기존 서비스·수집기·DB schema·Redis 설정을 변경하지 않는다. iSCSI의 PostgreSQL 데이터 디렉터리를 새 DB에 마운트하지 않는다.
-- `.env`의 값은 로그·브라우저·이미지·문서에 포함하지 않는다. 현재 `higs_key`, `vworld_key`만 존재하고 DB/Redis 연결 설정은 없다. 기존 서비스 연결 설정을 확인할 때 값을 출력하지 않고 필요한 DB/Redis 항목만 사용한다.
+- `.env`의 값은 로그·브라우저·이미지·문서에 포함하지 않는다. 현재 `higs_key`, `vworld_key`, SSH용 `password`가 존재하고 DB/Redis 연결 설정은 없다. SSH 비밀번호는 접속에만 사용하고 Rust 컨테이너에 전달하거나 `.env` 전체를 원격 서버로 복사하지 않는다. 기존 서비스 연결 설정을 확인할 때 값을 출력하지 않고 필요한 DB/Redis 항목만 사용한다.
 - `timeline`은 최대 7일, 정확한 시각의 `state`가 없으면 404, 유효하지 않은 입력은 422, 필수 원천 실패는 503으로 구분한다.
 - 원천 확인 주기는 60초, 원천 시각이 15분 이상 오래되면 지연으로 표시한다. 같은 시각의 값 정정도 WS로 전송한다. 시간 입력에는 UTC offset이 필요하다.
 - 캐시 namespace는 `edt:dev:v1:`; GIS TTL 3600초, 최신 HTTP 30초, 특정 시각/시간 목록 300초. Redis 실패 시 원천 DB로 조회한다.
 - 0과 NULL을 구분하고, 비유한값은 NULL+quality flag로 전달한다. `supply_mw`의 API 이름은 `supply_capacity_mw`다. 지역 집계값을 개별 발전량으로 배분하지 않는다.
 - API·전력 계산은 CPU로, 이미지 자산 생성은 A6000 GPU 0에서, 렌더링은 GPU 1에서 시작한다. 첫 시뮬레이션은 지역 집계 S0–S1, 최대 하루·5분 간격 288구간이다. 선로별 실제 흐름·전압·배전망은 추가 모델 데이터 확보 후 별도 계획으로 구현한다.
 - Higgsfield를 실행 의존성에서 제외한다. TRELLIS.2의 실제 mesh/PBR 생성과 엔진 import를 검증한다. 코드/모델은 MIT지만 의존성·엔진의 별도 조건을 보존하고, 엔터프라이즈 기능 완벽 호환을 검증 없이 주장하지 않는다.
-- GPU 이전 서버는 사용자 제공 A6000 두 장이며 실제 OS·driver·장치 노출은 미확인이다. DB와 호스트가 다르면 기존 external Docker network 이름을 재사용하지 않고 연결 주소·접근 경로를 검증한다.
+- SSH 읽기 전용 확인에서 원격 RTX A6000 두 장·각 49,140MiB·드라이버 `535.183.01`을 확인했다. 컨테이너 GPU 노출과 모델 실행은 미확인이다. GPU 서버는 Rust API 결과를 사용하며 원천 DB/Redis에 직접 접속하지 않는다. SSH 터널과 renderer의 실제 연결 검증은 Task 6에 포함한다.
 
 ## Review Focus
 
@@ -71,7 +71,7 @@
 - [ ] 설정/health 테스트를 먼저 작성한다. `missing_database_url_names_variable_without_value`, `health_db_down_is_503`, `health_cache_down_is_degraded`에서 secret literal이 응답·오류에 없는지와 상태 코드를 확인한다.
 - [ ] `cargo test --lib`를 실행해 해당 기능 부재로 실패하는지 확인한다.
 - [ ] 단일 crate와 최소 서버를 구현한다. DB는 읽기 전용 transaction·statement timeout을 사용하고, 시작/종료 시 연결 문자열을 출력하지 않는다.
-- [ ] Compose의 서비스 이름은 `jeju-twin-api`, 내부 포트 8090, 외부는 `127.0.0.1:8090`이다. 기존 DB와 같은 호스트에서는 `src_energy-hub-net`, `pv-pipeline-network`를 external로 참조한다. 다른 호스트에서는 검증한 내부망/터널 주소를 사용하며 로컬 Docker network가 원격 서비스로 연결된다고 가정하지 않는다. 새 DB/Redis 서비스는 추가하지 않는다.
+- [ ] Compose의 서비스 이름은 `jeju-twin-api`, 내부 포트 8090, 외부는 기존 데이터 서버의 `127.0.0.1:8090`이다. 기존 DB와 같은 호스트에서 `src_energy-hub-net`, `pv-pipeline-network`를 external로 참조한다. 새 DB/Redis 서비스는 추가하지 않는다.
 - [ ] `.env.example`에 `HUB_DATABASE_URL`, `DEMAND_DATABASE_URL`, `REDIS_URL`, `ALLOWED_ORIGINS`의 형식을 기록한다. 실제 비밀번호는 넣지 않는다. 현재 생성 작업을 하지 않는 Rust API에는 Higgsfield 비밀키를 전달하지 않는다.
 - [ ] `cargo test --lib`와 `docker compose config --quiet`를 실행한다. 환경 값이 치환된 Compose 전체 출력은 남기지 않는다.
 - [ ] 결과를 검토한다. 커밋은 프로젝트 Git 경계가 확정된 경우에만 해당 파일을 대상으로 한다.
@@ -145,7 +145,7 @@
 - [ ] 상태 적용을 `should_apply(mode, requested_at, response_at, is_live, requested_seq, response_seq) -> bool` 함수로 분리해 필요한 한 테스트 파일에서 검사한다. history에서는 live=false·선택 시점 일치·요청 sequence 일치를 모두 요구한다. scenario에서 관측 응답 거부, latest에서 최신 관측 적용을 확인한다. 같은 시점의 오래된 HTTP 요청 응답도 최신 선택을 덮어쓰지 않아야 한다.
 - [ ] Kit UI/scene thread에 안전하게 반영하고, 입력/선택·카메라·시간축·WS 재접속·느린 서버/오류 표시를 확인한다. 모델을 프레임마다 재생성하지 않는다.
 - [ ] 동일 GLB를 지정 Unity/glTFast와 Unreal 버전에서 가져와 형상·scale·텍스처·node/ID 보존을 비교한다. GLB/USD import 성공과 해당 엔진의 완성된 운영 UI/WS 연결을 구분해 기록한다.
-- [ ] 렌더러와 Rust가 다른 호스트면 실제 접근 가능한 API 주소와 Origin/접근 정책을 확인한다. 서버 렌더링의 화면 스트리밍은 첫 장면 실행 뒤 별도 배포 범위로 결정한다.
+- [ ] 기획서 18.6절의 SSH reverse forwarding으로 GPU 호스트 `127.0.0.1:18090`을 기존 서버 `127.0.0.1:8090`에 연결한다. SSH forwarding 허용·원격 loopback 바인딩·포트 충돌·Origin/접근 정책을 확인한다. 실제 health·snapshot·WS 재접속까지 검증하며 SSH 로그인 성공을 전송 성공으로 보고하지 않는다. 렌더러 컨테이너에서는 호스트 터널 접근도 확인한다. 서버 렌더링의 화면 스트리밍은 첫 장면 실행 뒤 별도 배포 범위로 결정한다.
 - [ ] 카메라·선택·시점 갱신과 1920×1080에서 60초 FPS p5≥30 목표를 시험한다. 목표 미달은 자산/장면 복잡도를 조정하고 결과를 기록한다. 협업·SSO·권한·클라우드 배포는 구현한 항목만 지원으로 보고한다.
 
 ## Task 7: Integration verification and handoff
