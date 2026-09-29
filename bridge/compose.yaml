@@ -1,0 +1,30 @@
+name: jeju-data-bridge
+services:
+  bridge:
+    build: .
+    image: jeju-data-bridge:dev
+    container_name: jeju-data-bridge
+    environment:
+      HUB_DATABASE_URL: ${HUB_DATABASE_URL:?set HUB_DATABASE_URL in bridge/.env}
+      DEMAND_DATABASE_URL: ${DEMAND_DATABASE_URL:?set DEMAND_DATABASE_URL in bridge/.env}
+      SOURCE_TIMEZONE: ${SOURCE_TIMEZONE:?set SOURCE_TIMEZONE in bridge/.env}
+      BIND_ADDR: 0.0.0.0:8091
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-60}
+    ports:
+      - "127.0.0.1:8091:8091"
+    networks:
+      - hub
+      - demand
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 25s
+networks:
+  hub:
+    external: true
+    name: src_energy-hub-net
+  demand:
+    external: true
+    name: pv-pipeline-network
