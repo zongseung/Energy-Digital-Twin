@@ -3,15 +3,19 @@ name = "jeju-data-bridge"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
+default-run = "jeju-data-bridge"
 
 [dependencies]
 axum = { version = "0.8", features = ["ws"] }
 chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
 futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "chrono", "json"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time", "signal"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time", "signal", "fs", "io-util", "process"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util"] }

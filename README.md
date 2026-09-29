@@ -5,3 +5,4 @@
 - [최종 설계](jeju_power_grid_digital_twin_design.md)
 - [서버별 구현 계획과 진행 상태](jeju_power_grid_implementation_plan.md)
 - [브릿지 실행·API·GPU 비동기 수신 방법](bridge/README.md)
+- [iSCSI 제주 지리 데이터 수집·재시작 방법](bridge/README.md#제주-지리-데이터-수집)

@@ -100,3 +100,34 @@ cargo test --manifest-path bridge/Cargo.toml --locked -- --ignored --nocapture
 ```
 
 실제 DB 검사는 읽기 전용 설정, 두 실제 시점의 다섯 관측값·KST/UTC 변환, 존재하는 시간 목록·404, GIS ID와 HVDC 전체 경로를 확인한다. 운영 DB 수정·정지 없이 수행한다. GPU 터널·앱 Redis·시뮬레이션·사진 기반 3D 통합은 이 브릿지 검사에 포함하지 않는다.
+
+## 제주 지리 데이터 수집
+
+Rust 비동기 CLI `collect_geography`가 기존 Hub GIS·DEM을 추출하고 루트 `.env`의 `vworld_key`로 VWorld 도로명주소 건물·해안선·시군구 경계를 받는다. API·DB·DEM 작업은 병렬로 실행하며 API 페이지 요청은 순서대로 처리한다. GPU는 필요 없다. 결과는 **`/mnt/iscsi/energy-digital-twin/geography/jeju`**에 저장한다.
+
+프로젝트 루트에서 실행한다. 기존 `bridge/.env`의 `HUB_DATABASE_URL`을 사용하되 호스트 실행을 위해 DB 주소를 `127.0.0.1:5437`로 연결한다. DEM 처리는 이미 설치된 `/mnt/nvme/Energy-hub/.venv/bin/python`의 rasterio를 호출한다. 새 서버에서는 해당 도구와 원천 DEM 경로를 먼저 준비해야 한다. 대상 폴더는 현재 사용자에게 쓰기 권한이 있어야 한다.
+
+```bash
+cargo build --manifest-path bridge/Cargo.toml --release --locked --bin collect_geography
+flock -n /mnt/iscsi/energy-digital-twin/geography/jeju/.collector.lock \
+  ./bridge/target/release/collect_geography
+```
+
+| 파일 | 자료·출처 |
+|---|---|
+| `admin_boundary.geojsonl` | 기존 Hub 시군구 경계, 기준연도·역사 코드 보존 |
+| `road.geojsonl`, `landcover.geojsonl` | 기존 Hub 도로·토지피복 |
+| `power_line.geojsonl`, `substation.geojsonl` | 기존 Hub 전력 선로·변전소, HVDC 전체 경로 보존 |
+| `power_plant.geojsonl`, `pv_facility.geojsonl` | 기존 Hub 발전 시설·태양광 시설 |
+| `coastline.geojsonl` | VWorld `LT_L_TOISDEPCNTAH` 해안선 |
+| `vworld_admin_boundary.geojsonl` | VWorld `LT_C_ADSIGG_INFO` 시군구 경계 |
+| `buildings.geojsonl` | VWorld `LT_C_SPBD` 건물 footprint·주소·층수 |
+| `dem_jeju.tif` | 기존 `dem_korea.tif`의 제주 GeoTIFF 부분 추출 |
+
+범위는 경도 126–127°, 위도 33–33.7°, CRS는 EPSG:4326이다. Hub는 bbox 후보를 선택하고 전체 geometry를 보존하므로 범위를 벗어난 geometry도 포함될 수 있다. 전력 선로는 제주 속성도 포함해 본토 연결을 유지한다. 건물은 API 면적 제한에 맞춘 0.03° 격자 816개에서 모든 페이지를 받고 원천 ID로 중복 제거한다. `.geojsonl`은 줄마다 GeoJSON Feature 하나인 UTF-8 JSON Lines이며 FeatureCollection 전체 JSON이나 RFC 8142의 RS 구분 형식이 아니다.
+
+각 파일의 `.metadata.json`에 출처·수집 시각·건수·바이트·SHA-256·품질 정보를 기록하고, 11종 전체 성공 시에만 `manifest.json`의 `complete`가 true다. `.part`는 미완료 결과다. 완료 metadata와 해시가 일치하는 자료는 재사용한다. 완료 metadata가 없는 파일은 다시 생성하고, 기존 완료 파일의 해시가 다르면 오류로 종료한다. `vworld_pages/`의 검증된 API 페이지는 재시작 시 재사용한다. 페이지의 총건수나 ID가 충돌하면 해당 격자 checkpoint를 지우고 실패하며, 같은 명령을 다시 실행하면 그 구역을 새로 받는다. 원천 변경을 자동 추적하는 주기적 수집기는 아니다.
+
+기존 Hub 행정경계는 2018년의 `39010/39020`을 사용한다. API 경계를 별도 보존하며 API 수집일을 자료 기준일로 단정하지 않는다. 건물 층수는 실측 높이가 아니고 DEM의 수직 기준·사용 조건은 추가 확인이 필요하다. 발전/태양광 테이블의 중복 시설 여부와 선로의 전기적 연결은 별도 검증 대상이다. 실제 지역 사진·텍스처·측량 수준 3D·선로별 전력 모델은 이 수집에 포함되지 않는다.
+
+정적 지리 파일은 GPU 장면 준비 단계에서 파일 전송 후 해시를 대조한다. 이 CLI가 만든 파일은 현재 브릿지 HTTP/WS에 자동 공개되지 않는다. 실시간 관측은 기존 브릿지 HTTP/WS를 사용한다.
