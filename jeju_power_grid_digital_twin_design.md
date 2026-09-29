@@ -11,6 +11,7 @@
 - 1차 결과물: 제주 전력설비를 실제 좌표에 배치하고, 카메라 이동·설비 선택·시간 변경이 가능한 연구·시연용 3D 앱.
 - 추가 사용자 요구: Rust 백엔드를 Docker로 실행하고 Redis 캐시와 WebSocket을 사용한다. GPU는 3D 자산 제작과 선택한 렌더러에 사용하며 전력 계산은 CPU로 시작한다.
 - 제안 실행안: **TRELLIS.2로 개별 설비 자산 제작 + GLB/OpenUSD + Omniverse 첫 연동 + Docker의 Rust 백엔드·Redis·WebSocket**. TRELLIS.2와 Omniverse 우선 검증은 조사에 따른 추천이며 설치·실행 검증 전이다. Unity/Unreal은 같은 자산과 API의 호환성 확인 대상이다.
+- 최종 구현 위치: **현재 서버에는 데이터 브릿지와 방법론·기획 문서를 두고, GPU 서버에 Rust 앱 백엔드·Redis·시뮬레이션·3D 제작·렌더러를 구현한다.** GPU 서버의 CPU가 API·전력 계산을 수행하고 A6000 두 장은 자산 생성·렌더링에 사용한다.
 - 최신 모델·GPU·엔진 호환성 계약은 18절과 [구현 계획](jeju_power_grid_implementation_plan.md)에 기록한다. “엔터프라이즈 기능 완벽 호환”은 현재 검증된 결과로 사용하지 않는다.
 
 ## 1. 목적과 성공의 정의
@@ -122,8 +123,9 @@ flowchart LR
     IMG[같은 제주 지역의 현장 실사 사진] --> GEN[GPU 생성·다중 사진 복원]
     GEN --> FILE[GLB·OpenUSD·시설 ID]
     FILE --> VIEW[렌더링 엔진의 대화형 3D 화면]
-    GIS[기존 PostGIS GIS] --> API[Rust 조회·검증 API]
-    TS[기존 제주 시계열] --> API
+    GIS[현재 서버 PostGIS GIS] --> BRIDGE[현재 서버 데이터 브릿지]
+    TS[현재 서버 제주 시계열] --> BRIDGE
+    BRIDGE -->|SSH 터널의 HTTP·WebSocket| API[GPU 서버 Rust 앱 백엔드·계산]
     DEM[GIS·DEM·VWorld 보조 자료] --> FILE
     API <--> CACHE[Redis 캐시]
     API -->|HTTP·WebSocket| VIEW
@@ -133,16 +135,17 @@ flowchart LR
 | 구성 요소 | 책임 | 최소 기술/산출물 |
 |---|---|---|
 | 기존 저장·수집 | 현재 GIS와 수급 원천을 유지 | PostgreSQL/PostGIS와 기존 수집기 재사용 |
-| Rust 서비스 | 조회·단위/시간 검증, 캐시, snapshot·오류/품질·WS 전달 | `sqlx`, `axum`의 `ws`, `tokio`, `serde`, `redis`; Docker 실행 |
+| 현재 서버 데이터 브릿지 | 원천 SELECT, 단위/시간·품질 보존, GIS·관측·과거 자료 전달 | 최소 Rust 조회·HTTP/WS 실행부. 현재 서버에는 앱 계산·3D 기능을 추가하지 않음 |
+| GPU 서버 Rust 앱 백엔드 | 브릿지 자료 수신·검증, 캐시, 사용자 API·WS, 시뮬레이션 | `axum`, `tokio`, `serde`, `redis`; 원천 DB 대신 브릿지 연결 |
 | GPU 제작 컨테이너 | 사진 기반 설비 mesh·PBR 자산 생성 | 고정 버전 TRELLIS.2의 Python 추론·GLB export, 배치 작업부터 시작 |
 | 렌더링 엔진 | 장면 조립, 카메라·선택·시간축·표시값 갱신 | Omniverse 우선 검증 제안. Unity/Unreal은 교환 자산과 API를 별도 확인 |
-| Redis 캐시 | 검증한 GIS/시계열 조회 결과의 일시 보관 | 원천 DB 기준 캐시, namespace·TTL·실패 시 DB 조회 |
+| GPU 서버 Redis 캐시 | 검증한 GIS/시계열 조회 결과의 일시 보관 | 브릿지 기준 캐시, namespace·TTL·실패 시 브릿지 조회 |
 | 자산/지형 묶음 | 원천·단위·축·좌표·라이선스·ID 대응을 보존 | GLB, 제주 지형 mesh, manifest |
 | 후속 계산 | 검증한 계통과 snapshot을 이용한 계산 | 독립 입력/출력 계약. MVP API 경로에 미검증 solver를 연결하지 않음 |
 
-초기에는 Rust API 서버 하나와 선택한 표시 클라이언트 하나로 시작한다. 추가 사용자 요구에 따라 Redis 캐시와 WebSocket을 사용하고 Docker로 실행한다(16절). 기존 PostgreSQL/PostGIS를 재사용하며 추가 메시지 브로커·새 시계열 DB·분산 실행·모델 플러그인 시스템은 만들지 않는다. Rust 의존성은 선택한 MSRV와 호환되는 버전을 고정하고 lockfile로 재현한다. 현재 Rust 1.96.0 설치 사실은 확인했지만 API 의존성 빌드나 선택한 렌더러 연동까지 검증한 상태는 아니다.
+초기에는 현재 서버의 작은 데이터 브릿지와 GPU 서버의 Rust 앱 백엔드·표시 클라이언트로 시작한다. 앱 백엔드와 Redis는 GPU 서버에서 Docker로 실행한다(16절). 현재 서버의 PostgreSQL/PostGIS를 브릿지에서 재사용하며 추가 메시지 브로커·새 시계열 DB·분산 계산·모델 플러그인 시스템은 만들지 않는다. Rust 의존성은 선택한 MSRV와 호환되는 버전을 고정하고 lockfile로 재현한다. 현재 서버의 Rust 1.96.0 설치 사실은 확인했지만 GPU 서버의 Rust 빌드 환경과 앱 의존성·렌더러 연동은 별도 검증한다.
 
-DB 접속정보는 기존 데이터 서버의 Rust 서비스에서 읽고 GPU 서버에는 API 주소만 전달한다. 사용자 선택에 따라 iSCSI·DB·Redis·Rust API는 기존 서버에 유지하고, A6000 서버에는 HTTP/WebSocket으로 필요한 데이터를 전달한다. 첫 연결은 18.6절의 SSH 터널로 구성하며 공개 서비스 배포는 별도 요구사항으로 다룬다.
+DB 접속정보는 현재 서버의 브릿지에만 주입한다. GPU 서버의 앱은 브릿지 주소와 전송된 데이터만 사용한다. 현재 프로젝트에는 브릿지 코드·방법론·기획서를 두고, 제품 코드는 GPU 서버의 작업 공간에서 작성·빌드·실행한다. 첫 연결은 18.6절의 SSH 터널로 구성하며 공개 서비스 배포는 별도 요구사항으로 다룬다.
 
 ### 7.1 좌표와 3D 자산
 
@@ -235,7 +238,7 @@ G0–G3가 이번 MVP 설계의 범위다. G4–G5는 후속 프로젝트의 조
 | 시점 경쟁 | 시간 A 선택 뒤 B 선택, A 응답이 늦게 도착 | 최종 화면의 시각과 값이 B에 일치 |
 | ID/geometry | HVDC 중복 geometry, 같은 시설명의 서로 다른 전압, 지역 메타 오류 | 물리 회선으로 중복 합산하거나 이름/region만으로 시설을 잘못 병합하지 않음 |
 | 단절/실패 | API timeout·DB 단절·GLB/terrain 실패 | 마지막 성공 시점과 오류 표시, 정적 조작 유지, 성공으로 오표시하지 않음 |
-| Redis/WS | 캐시 miss·Redis 단절, WS 재접속·느린 소비자, 같은 관측 시각의 값 정정 | DB 원천으로 복구, 재접속 snapshot, 큐 누적 제한, 정정 전달. heartbeat를 새 관측으로 표시하지 않음 |
+| Redis/WS | 캐시 miss·Redis 단절, 브릿지/WS 재접속·느린 소비자, 같은 관측 시각의 값 정정 | 브릿지 조회로 복구, 재접속 snapshot, 큐 누적 제한, 정정 전달. heartbeat를 새 관측으로 표시하지 않음 |
 | 성능 | 시험 PC와 GPU/드라이버·OS 기록, 1920×1080, 감사 규모에 해당하는 단순 표식/선로 | 카메라 조작의 60초 측정에서 FPS p5≥30을 목표로 검증. 자산 정밀도·표시 밀도를 조정해 같은 조건으로 재측정. 미달이면 미달 결과 기록 |
 | 화면 이해 | 전체 집계와 개별 계량, 공급능력, 관측/추정/시나리오 구분 | 사용자가 선택한 시점·값의 의미·미확보 범위를 확인 가능 |
 
@@ -415,7 +418,7 @@ VWorld 공식 예제에는 `viewer.entities.add`의 model URI로 자체 GLB를 �
 
 ### 16.1 결론과 현재 준비 상태
 
-사용자 요구인 **실제 제주 사진 → GPU 자산 생성/복원 → 렌더러 ↔ Rust 데이터/계산·Redis·WebSocket**을 구현 기준으로 둔다. 백엔드는 CPU로 시작할 수 있다. 키가 저장됐다는 사실과 이미지 반영·화면 실행·데이터 연결이 성공했다는 사실은 구분한다.
+사용자 요구인 **현재 서버 데이터 브릿지 → GPU 서버의 Rust 앱·Redis·시뮬레이션·3D 환경**을 구현 기준으로 둔다. 백엔드 계산은 GPU 서버의 CPU로 시작한다. 현재 서버에는 원천 조회·전송 코드와 방법론만 추가한다. 키가 저장됐다는 사실과 이미지 반영·화면 실행·데이터 연결이 성공했다는 사실은 구분한다.
 
 2026-09-29의 읽기 전용 점검 결과는 다음과 같다.
 
@@ -423,7 +426,7 @@ VWorld 공식 예제에는 `viewer.entities.add`의 model URI로 자체 GLB를 �
 - 현재 `.env`에는 DB 연결 문자열과 `REDIS_URL` 설정이 없다. Rust 프로젝트의 `Cargo.toml`과 Docker Compose 파일도 아직 없다.
 - 후속 접속 점검에서 사용자가 `.env`에 추가한 `password`로 `user@192.9.59.208:10000` SSH 인증에 성공했다. 이 값은 SSH 접속에만 사용하고 Rust 컨테이너나 GPU 서버로 `.env` 전체를 복사하지 않는다. 원격 GPU 관측 결과는 18.6절에 기록한다.
 - 기존 `energy-hub-db`, `demand-postgres`, `pv-data-postgres`, `energy-hub-redis` 컨테이너가 실행 중이다. Redis는 `src_energy-hub-net`, Demand/PV DB는 `pv-pipeline-network`에 있고 Hub DB는 두 네트워크에 있다.
-- 기존 Redis의 설정은 256MiB·`allkeys-lru`다. 재사용 시 `edt:dev:v1:` namespace와 짧은 TTL·응답 크기 제한을 적용한다. 공용 캐시의 자원 영향은 실제 부하에서 확인하며 설정 변경이나 전체 flush로 관리하지 않는다.
+- 기존 Redis의 설정은 256MiB·`allkeys-lru`다. 이 관측은 기존 서비스 기록이며, 최종 앱 캐시는 GPU 서버의 Docker Redis에 둔다. 브릿지에는 Redis가 필요하지 않다. 앱 캐시는 `edt:dev:v1:` namespace·짧은 TTL·응답 크기 제한을 사용한다.
 - 현재 `nvidia-smi`는 드라이버 통신에 실패한다. 아래 CPU 서버 구성의 착수 조건에는 서버 GPU를 넣지 않는다.
 
 ### 16.2 제작 실행부와 렌더러
@@ -434,19 +437,19 @@ GPU 추론은 모델의 Python/CUDA 구현을 별도 Docker 배치 작업으로 
 
 ### 16.3 Docker 실행과 키·DB 연결
 
-“개발 키를 Docker로 띄운다”는 요청은 **개발 서비스를 Docker로 띄우고 키를 실행 시 주입한다**는 구성으로 반영한다. Compose의 `.env`는 값 치환에 쓰이며, 컨테이너 전달은 `environment` 또는 `env_file`로 지정해야 한다. 기존 `higs_key`는 새 실행 경로에서 사용하지 않는다. `vworld_key`는 보조 API를 사용할 경우에만 명시적으로 주입한다. DB 접속에는 `HUB_DATABASE_URL`, `DEMAND_DATABASE_URL`, 캐시에는 `REDIS_URL`을 추가하고, 검증한 개별 발전 조회를 넣을 때 `PV_DATABASE_URL`을 추가한다. [Compose 환경 변수](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/).
+“개발 키를 Docker로 띄운다”는 요청은 **개발 서비스를 Docker로 띄우고 키를 실행 시 주입한다**는 구성으로 반영한다. Compose의 `.env`는 값 치환에 쓰이며, 컨테이너 전달은 `environment` 또는 `env_file`로 지정해야 한다. 기존 `higs_key`는 새 실행 경로에서 사용하지 않는다. `vworld_key`는 보조 API를 사용할 경우에만 명시적으로 주입한다. 현재 서버의 브릿지에는 `HUB_DATABASE_URL`, `DEMAND_DATABASE_URL`과 필요 시 `PV_DATABASE_URL`을, GPU 서버의 앱에는 `BRIDGE_BASE_URL`, `REDIS_URL`을 설정한다. [Compose 환경 변수](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/).
 
-원천과 같은 호스트의 Rust 서비스는 기존 Docker 네트워크를 external로 참조해 DB/Redis의 이름과 컨테이너 포트를 사용한다. GPU 서버에는 API 결과를 전달하며 DB/Redis를 직접 연결하지 않는다. 기존 Docker 네트워크 이름은 다른 호스트로 연결되지 않으며, 컨테이너 안의 `localhost:5437`은 호스트의 Hub DB가 아니다. 기존 DB를 새로 띄우거나 iSCSI PostgreSQL 저장 디렉터리를 새 서버에 마운트해 여는 방식은 쓰지 않는다. [Compose 네트워크](https://docs.docker.com/compose/how-tos/networking/).
+현재 서버의 브릿지는 기존 Docker 네트워크를 external로 참조해 DB 이름과 컨테이너 포트를 사용한다. GPU 서버에는 조회 결과를 전달하며 원천 DB/Redis를 직접 연결하지 않는다. GPU 서버에는 앱 전용 Redis를 실행한다. 기존 Docker 네트워크 이름은 다른 호스트로 연결되지 않으며, 컨테이너 안의 `localhost:5437`은 호스트의 Hub DB가 아니다. 기존 DB를 새로 띄우거나 iSCSI PostgreSQL 저장 디렉터리를 새 서버에 마운트해 여는 방식은 쓰지 않는다. [Compose 네트워크](https://docs.docker.com/compose/how-tos/networking/).
 
-DB/Redis 인증정보는 Rust 서비스에만 주입한다. 브라우저에는 공개 가능한 API 주소와 필요한 클라이언트 설정만 전달한다. `.env`는 이미지의 `COPY` 대상과 Git에 포함하지 않는다. `docker compose config`의 전체 출력처럼 치환한 키가 노출되는 검증은 피한다.
+원천 DB 인증정보는 현재 서버의 브릿지에만, 앱 Redis 인증정보는 GPU 서버의 Rust 백엔드에만 주입한다. 브라우저에는 공개 가능한 API 주소와 필요한 클라이언트 설정만 전달한다. `.env`는 이미지의 `COPY` 대상과 Git에 포함하지 않는다. `docker compose config`의 전체 출력처럼 치환한 키가 노출되는 검증은 피한다.
 
 렌더러는 Rust 서비스의 접근 가능한 HTTP/WS 주소를 사용한다. 원격 네트워크의 웹 클라이언트는 HTTPS/WSS와 허용 Origin을 설정한다. 네이티브 엔진 클라이언트도 WS handshake와 접근 정책을 맞춘다. 엔진을 서버에서 렌더링해 화면을 전송하는 방식은 브라우저 로컬 렌더링과 자원 요구가 다르며, 첫 엔진 실행 후 배포 방식을 정한다.
 
 ### 16.4 Rust·HTTP·WebSocket의 책임
 
-Rust 백엔드는 `axum`·`tokio`·`sqlx`·`serde`·비동기 `redis` 클라이언트로 구성한다. HTTP와 WebSocket은 같은 서비스에 둔다. HTTP는 GIS·시간 목록·과거 조회를 담당하고 WS는 최신 상태를 전달한다. GLB·텍스처와 큰 파일은 HTTP로 제공한다. [axum WS](https://docs.rs/axum/latest/axum/extract/ws/index.html), [Redis Rust 연결](https://redis.io/docs/latest/develop/clients/rust/).
+현재 서버의 브릿지는 `sqlx`로 원천을 읽고 `axum`·`tokio`·`serde`로 HTTP/WS 데이터를 전달한다. 시뮬레이션·앱 UI·앱 캐시는 구현하지 않는다. GPU 서버의 Rust 백엔드는 브릿지의 HTTP/WS를 수신하고 캐시·사용자 API·WS·계산을 담당한다. 제품 HTTP와 WebSocket은 GPU 서버의 같은 서비스에 둔다. HTTP는 GIS·시간 목록·과거 조회를 담당하고 WS는 최신 상태를 전달한다. GLB·텍스처와 큰 파일은 HTTP로 제공한다. [axum WS](https://docs.rs/axum/latest/axum/extract/ws/index.html), [Redis Rust 연결](https://redis.io/docs/latest/develop/clients/rust/).
 
-- `GET /api/v1/jeju/ws` 연결 직후 최신 전체 snapshot을 보내고, 서버가 60초마다 DB 원천을 확인해 값/품질이 변경됐을 때 전달한다. 같은 관측 시각의 정정도 반영한다. 원천의 5분 자료를 WS 사용만으로 초단위 계측으로 바꾸지 않는다.
+- 브릿지가 60초마다 DB 원천을 확인하고 초기 전체 snapshot·변경/정정을 GPU 앱으로 보낸다. GPU 앱의 `GET /api/v1/jeju/ws`는 사용자에게 초기 전체 snapshot과 수신한 변경을 전달한다. 같은 관측 시각의 정정도 반영한다. 원천의 5분 자료를 WS 사용만으로 초단위 계측으로 바꾸지 않는다.
 - 메시지는 `type`, `schema_version`, `observed_at`, `sent_at`, `state_version`, `source`, `quality_flags`, `data`를 포함한다. `state_version`은 의미 있는 payload 변경을 식별하고 `observed_at`은 원천 관측 시각이다.
 - 재접속 시 전체 snapshot을 다시 받는다. 마지막 성공 값·시각과 연결 상태를 구분하고, heartbeat는 새 관측으로 취급하지 않는다. 15분 원천 지연 규칙은 유지한다.
 - 첫 서버 한 개에서는 `tokio::sync::watch`로 최신 snapshot을 공유한다. 느린 클라이언트의 오래된 상태를 무한 큐에 쌓지 않고 최신 상태로 재동기화하며 송신 timeout/연결 종료를 처리한다. [Tokio watch](https://docs.rs/tokio/latest/tokio/sync/watch/index.html).
@@ -463,7 +466,7 @@ Rust 백엔드는 `axum`·`tokio`·`sqlx`·`serde`·비동기 `redis` 클라이�
 | 최신 상태의 HTTP 응답 | 30초 | 서버의 최신 원천 확인은 캐시를 우회해 변경을 감지. 원천 시각/품질을 함께 저장 |
 | 특정 시각·시간 목록 | 5분 | 정규화한 시각·범위와 의미/버전을 key에 포함. 정정과 원천 갱신에 대응 |
 
-TTL은 구현 시 검증할 초기값이다. cache-aside로 읽고, miss이면 DB 결과를 검증한 뒤 저장한다. Redis가 끊기면 DB로 조회하고 cache degraded를 기록한다. DB 실패를 오래된 캐시의 새 관측으로 숨기지 않는다. 0/NULL·단위·출처·원천 시각과 quality를 캐시에도 그대로 유지한다. 캐시와 원본 DB의 같은 시점 응답을 대조한다.
+TTL은 구현 시 검증할 초기값이다. GPU 앱은 cache-aside로 읽고, miss이면 브릿지 결과를 검증한 뒤 저장한다. Redis가 끊기면 브릿지로 조회하고 cache degraded를 기록한다. 브릿지 또는 원천 DB 실패를 오래된 캐시의 새 관측으로 숨기지 않는다. 0/NULL·단위·출처·원천 시각과 quality를 캐시에도 그대로 유지한다. 브릿지 응답을 원본 DB와 대조하고 앱 캐시를 같은 브릿지 응답과 대조한다.
 
 VWorld 원본 3D 타일 전체나 GLB·이미지 원본을 Redis에 쌓지 않는다. 제작 자산은 파일 저장·manifest·HTTP 캐시로 제공한다. 서버 상태는 모델을 다시 생성하는 대신 기존 객체의 값·표시를 갱신한다.
 
@@ -471,7 +474,8 @@ VWorld 원본 3D 타일 전체나 GLB·이미지 원본을 Redis에 쌓지 않�
 
 | 작업 | 처음 사용할 실행 자원 | GPU 판단 |
 |---|---|---|
-| Rust API·DB·Redis·WebSocket·단위/시간 검증 | 서버 CPU | 서버 GPU 불필요 |
+| 현재 서버 원천 DB·데이터 브릿지 | 현재 서버 CPU | 서버 GPU 불필요 |
+| Rust 앱 API·Redis·WebSocket·단위/시간 검증 | GPU 서버 CPU | GPU 서버에 배치하되 GPU 연산 불필요 |
 | 첫 DC 조류·통상적인 AC/LP/MILP 연구 계산 | 서버 CPU solver | GPU를 선행 조건으로 두지 않음. 모델 규모·시나리오 수별 실제 시간 측정 후 가속 검토 |
 | 오픈소스 Image-to-3D 추론 | A6000 GPU 0의 제작 컨테이너 | 첫 단일 자산의 메모리/시간을 측정. 한 장당 48GB 기준, 18절 참조 |
 | 사진 기반 3D 화면 렌더링 | A6000 GPU 1 또는 표시 PC의 그래픽 장치 | 선택한 엔진·장면으로 검증. 서버 렌더링은 해당 서버 GPU를 사용 |
@@ -484,7 +488,7 @@ CPU 계산을 먼저 선택하는 것은 이 MVP의 설계 판단이며 실제 �
 ### 16.7 구현 착수 순서와 통과 조건
 
 1. 같은 지역의 사용 가능한 참조 사진과 GPU 추론 환경을 확인한다. 이미지가 반영된 작은 환경과 시설 선택 가능한 프런트 결과의 접근·편집·실행을 확인한다.
-2. Docker의 Rust API를 기존 DB와 Redis에 연결한다. 실제 원천 snapshot을 HTTP로 대조하고 캐시 miss/hit/단절에서도 값의 의미가 유지되는지 검사한다.
+2. 현재 서버의 브릿지를 기존 DB에 연결하고 원천 snapshot을 대조한다. GPU 서버의 Rust 앱을 브릿지·앱 Redis에 연결해 캐시 miss/hit/단절에서도 값의 의미가 유지되는지 검사한다.
 3. 선택한 렌더러에서 대표 시설 ID 선택과 두 관측 시점 변경을 확인하고, WS 연결·새 snapshot·재접속을 검증한다. 원천의 신규 자료 대기 없이도 실제 과거 두 snapshot을 시험 환경에서 순서대로 전달해 연결 동작을 검증할 수 있다. 이를 현재 계측이라고 표시하지 않는다.
 4. 이미지 대비 외형, 좌표·축·scale, 결측·원천 지연, WS와 역사 모드의 충돌 방지, 느린 소비자, 선택한 렌더러의 FPS를 검사한 뒤 제주 전체로 확대한다.
 
@@ -541,7 +545,7 @@ e_{t+1}=e_t+\eta_{ch}P_{ch,t}\Delta t-P_{dis,t}\Delta t/\eta_{dis}.
 첫 실행 범위는 최대 하루·5분 간격 288구간으로 제안한다. 관측 시각의 구간 정의를 확인한 뒤, 시나리오에서는 구간 내 전력을 일정하게 두는 가정을 기록한다. 이때 Δt=1/12h로 계산한 MWh는 모델 에너지이며 원천 계량 MWh와 자동으로 동일시하지 않는다. 필요한 원천값이 결측이면 해당 실행을 incomplete로 반환하며 누락 구간을 조용히 메우지 않는다.
 
 1. 렌더러의 화면에서 기준 날짜·수요/재생 배율·HVDC 가용성·ESS 조건을 입력한다.
-2. Rust가 원천 시점/단위/품질과 시나리오 입력을 검증하고 기준/변경 사례를 계산한다. 기존 Redis는 입력 조회 캐시에 사용한다.
+2. GPU 서버의 Rust 앱이 원천 시점/단위/품질과 시나리오 입력을 검증하고 기준/변경 사례를 계산한다. GPU 서버 Redis는 입력 조회 캐시에 사용한다.
 3. 결과에는 실행 ID, 모델/원천 버전, 입력 가정, 관측/시나리오 구분, 시점별 값, 최종 SOC, 수지 잔차와 실행 상태를 포함한다.
 4. 프런트가 결과의 시간축을 재생하고 시설 ID에 맞춰 값·표시를 갱신한다. 실시간 관측 WS가 시나리오 화면을 덮어쓰지 않게 모드를 구분한다.
 
@@ -591,15 +595,15 @@ TRELLIS.2의 공식 속도 표는 H100 기준이므로 A6000의 처리시간으�
 |---|---|
 | 사진→설비 mesh/PBR 생성 | GPU 0, 자산 한 개씩 생성하는 Docker 배치 작업 |
 | 장면 조립·Omniverse/다른 엔진 렌더링 | GPU 1. 렌더링하지 않는 시간에는 독립적인 추가 자산 생성에 사용 가능 |
-| Rust 수급/ESS·첫 계통 계산·API·Redis | CPU. GPU 추론과 별도 프로세스/컨테이너 |
+| Rust 수급/ESS·첫 계통 계산·API·Redis | GPU 서버 CPU. GPU 추론과 별도 프로세스/컨테이너 |
 
 두 GPU를 한 추론에 묶는 최적화는 첫 자산 시험 뒤 필요할 때만 한다. 96GB를 하나의 VRAM처럼 자동 사용할 수 있다고 가정하지 않는다. GPU 컨테이너는 사용할 장치만 노출하고 VRAM·온도·실행시간을 실제 측정한다. A6000 제원 충족은 CUDA extension 빌드·모든 해상도·모든 장면의 성공 보장이 아니다.
 
-이전 대상의 GPU 이름/메모리·드라이버는 SSH로 확인했다(18.6절). Docker GPU 노출과 모델의 PyTorch/CUDA 조합은 추가 검증한다. 모델과 출력 파일은 영속 디렉터리에 보존하고, 매 컨테이너 재시작마다 다운로드하지 않는다. 원천 DB·Redis·Rust는 기존 서버에 유지하고 GPU 서버에는 필요한 API 데이터와 사진·자산을 전달한다.
+이전 대상의 GPU 이름/메모리·드라이버는 SSH로 확인했다(18.6절). Docker GPU 노출과 모델의 PyTorch/CUDA 조합은 추가 검증한다. 모델과 출력 파일은 영속 디렉터리에 보존하고, 매 컨테이너 재시작마다 다운로드하지 않는다. 기존 서버는 원천 DB와 브릿지를 담당하고, GPU 서버에 앱 백엔드·Redis·계산·3D 제작·렌더러를 구현한다.
 
 iSCSI는 다른 서버의 initiator에도 네트워크·대상 ACL·필요한 인증이 허용되면 연결할 수 있다. 다만 현재 `/mnt/iscsi`와 `/mnt/iscsi-renewable`은 ext4이며, 작업 세션의 `findmnt`에는 각각 `/dev/sdb`, `/dev/sdc`와 `ro`로 보인다. 이 관측은 다른 호스트의 쓰기 여부나 새 서버의 접근 허용을 확인한 결과가 아니다. 같은 LUN의 ext4를 두 서버가 동시에 쓰지 않으며, 한쪽을 읽기 전용으로 붙여도 다른 쪽이 쓰는 동안 안전한 공유 파일시스템이 되는 것은 아니다. [iSCSI ACL·인증](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/managing_storage_devices/configuring-an-iscsi-target_managing-storage-devices), [ext4 공유 디스크 문제 사례](https://access.redhat.com/solutions/410173).
 
-사용자가 선택한 구성은 iSCSI·DB를 기존 서버에 유지하고 A6000 서버로 Rust API의 결과를 전달하는 방식이다. 사진·GLB/USD 같은 일반 파일만 별도로 전달한다. 저장소 자체를 옮겨야 하면 관련 DB/수집기를 정상 종료하고 기존 마운트·세션을 해제한 뒤 새 호스트에 연결하는 별도 이전 작업으로 수행한다. 이번 점검에서는 SSH 읽기 전용 조회만 수행했으며 iSCSI 연결·마운트·서비스는 변경하지 않았다.
+사용자가 선택한 구성은 iSCSI·DB를 기존 서버에 유지하고 작은 데이터 브릿지로 A6000 서버에 자료를 전달하는 방식이다. 제품 구현은 A6000 서버에서 수행한다. 사진·GLB/USD 같은 일반 파일만 별도로 전달한다. 저장소 자체를 옮겨야 하면 관련 DB/수집기를 정상 종료하고 기존 마운트·세션을 해제한 뒤 새 호스트에 연결하는 별도 이전 작업으로 수행한다. 이번 점검에서는 SSH 읽기 전용 조회만 수행했으며 iSCSI 연결·마운트·서비스는 변경하지 않았다.
 
 ### 18.3 호환성 요구사항의 표현
 
@@ -637,26 +641,30 @@ iSCSI는 다른 서버의 initiator에도 네트워크·대상 ACL·필요한 �
 사용자가 제공한 접속 주소는 `ssh -p 10000 user@192.9.59.208`이다. 2026-09-29에 `.env`의 SSH 인증정보로 접속해 `nvidia-smi`를 읽기 전용 실행했다. 원격 NVIDIA RTX A6000 두 장은 각각 49,140MiB이며 드라이버는 `535.183.01`이다. 컨테이너 GPU 접근·추론 성능·렌더러 동작은 아직 확인하지 않았다.
 
 ```text
-기존 서버: iSCSI → PostgreSQL → Rust API·계산 ↔ Redis
-                                  │ HTTP / WebSocket
-                                  │ SSH 암호화 터널
-A6000 서버: 초기 상태 조회·최신 상태 구독 → 3D 장면 갱신
+현재 서버: iSCSI → PostgreSQL → 데이터 브릿지
+                                    │ HTTP / WebSocket
+                                    │ SSH 암호화 터널
+A6000 서버: Rust 앱 백엔드·계산 ↔ 앱 Redis
+                 │ 사용자 API / WebSocket
+                 └→ 3D 장면 갱신
             GPU 0: 자산 생성 / GPU 1: 렌더링
 ```
 
-Rust 서비스는 기존 서버의 `127.0.0.1:8090`에 공개한다. 기존 서버에서 A6000 서버로 SSH 연결을 열어 원격 loopback의 `18090`을 Rust API로 전달하는 개발 구성을 사용한다. SSH 포트 `10000`은 HTTP/WS 서비스 포트가 아니다. 초기 GIS·상태·과거 자료는 HTTP로 조회하고, WS 연결 후에는 Rust가 변경된 관측을 전송한다.
+브릿지는 현재 서버의 `127.0.0.1:8091`에 공개한다. 현재 서버에서 A6000 서버로 SSH 연결을 열어 원격 loopback의 `18091`을 브릿지로 전달하는 개발 구성을 사용한다. GPU 서버의 앱은 `127.0.0.1:8090`에서 사용자 API·계산을 제공한다. SSH 포트 `10000`은 HTTP/WS 서비스 포트가 아니다. 초기 GIS·상태·과거 자료는 앱이 브릿지 HTTP로 조회하고, 브릿지 WS 연결 후에는 변경된 관측을 전송받는다.
 
-Rust API 실행 후 기존 서버에서 사용할 대화형 터널 명령 예시:
+브릿지 실행 후 현재 서버에서 사용할 대화형 터널 명령 예시:
 
 ```bash
 ssh -p 10000 -NT -o StrictHostKeyChecking=yes \
   -o ExitOnForwardFailure=yes \
   -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-  -R 127.0.0.1:18090:127.0.0.1:8090 user@192.9.59.208
+  -R 127.0.0.1:18091:127.0.0.1:8091 user@192.9.59.208
 ```
 
-A6000 호스트의 렌더러는 `http://127.0.0.1:18090`과 `ws://127.0.0.1:18090/api/v1/jeju/ws`를 사용한다. 이 loopback 주소 사이의 서버 간 전송은 SSH로 암호화한다. 컨테이너 안의 loopback은 호스트와 다르므로, 렌더러를 컨테이너로 실행하면 호스트 터널에 도달하는 네트워크 구성을 별도로 검증한다. `.env`를 SSH가 자동으로 읽는 것은 아니며 인증정보를 명령 인자나 문서에 넣지 않는다.
+A6000 호스트의 앱은 `BRIDGE_BASE_URL=http://127.0.0.1:18091`을 사용하고 브릿지 WS도 이 주소에서 구독한다. 렌더러는 GPU 서버 앱의 `http://127.0.0.1:8090`과 `ws://127.0.0.1:8090/api/v1/jeju/ws`를 사용한다. 서버 간 전송은 SSH로 암호화한다. GPU 앱 컨테이너는 Linux host network로 이 터널에 접근하는 개발 구성을 검증하며, Redis는 GPU 호스트 `127.0.0.1:6380`에만 공개한다. `.env`를 SSH가 자동으로 읽는 것은 아니며 인증정보를 명령 인자나 문서에 넣지 않는다.
 
 SSH 인증 성공과 포트 전달 허용은 별개다. 실제 터널 설정 때 SSH forwarding 허용·원격 listener의 loopback 바인딩·포트 충돌을 확인한다. `ExitOnForwardFailure`는 전달 대상 API의 health를 보장하지 않으므로 GPU 호스트에서 `/api/v1/health`·실제 snapshot·WS 갱신/재접속을 따로 검사한다. [OpenSSH 원격 포트 전달](https://man.openbsd.org/ssh.1#R), [전달 실패 옵션](https://man.openbsd.org/ssh_config.5#ExitOnForwardFailure).
 
-현재 확인한 것은 SSH 접속과 GPU 제원이다. Rust API·상시 터널·HTTP/WS 데이터 전송은 아직 실행하지 않았다. 마운트, 방화벽, 원격 서비스 설정은 변경하지 않았다.
+최종 제품 코드 작업 공간은 GPU 서버의 `~/energy-digital-twin`으로 계획하며 실제 home 경로·기존 파일을 확인한 뒤 생성한다. 현재 `/home/dlwhdtmd/energy-digital-twin`에는 방법론·기획·데이터 감사와 `bridge/` 구현만 둔다. GPU 제품 코드·모델·렌더러를 현재 서버에 구현하는 작업은 이 범위에 포함하지 않는다.
+
+현재 확인한 것은 SSH 접속과 GPU 제원이다. 브릿지·GPU 앱·상시 터널·HTTP/WS 데이터 전송은 아직 실행하지 않았다. 마운트, 방화벽, 원격 서비스 설정은 변경하지 않았다.
