@@ -367,7 +367,7 @@ VWorld는 제주 공간 자료·위치·높이·기존 외형의 보조 후보�
 |---|---|---|
 | VWorld WebGL 3D 지도 API 3.0 | 제공된 3D 지역 공간에 설비 모델·선로·정보를 추가 | 공식 안내는 JavaScript SDK와 KTX 2.0 기반 3D Tiles 적용을 설명. 운영기관은 3D 건물·시설물 제공을 안내. 프로젝트 키로 신창 구역의 지형/건물/텍스처와 기준일을 실제 확인해야 함 |
 | VWorld 2D데이터·WMS/WFS | 건물·도로·경계 등 제공되는 geometry/속성을 배치 근거로 활용 | 좌표·속성 또는 지도 레이어를 얻는 경로. 현장 사진이나 모든 건물 외벽 텍스처를 반환하는 API로 취급하지 않음. 실제 레이어·필드·사용 조건 확인 필요 |
-| 현장 사진/거리 파노라마 API | 실제 도로 시점 확인·비교 | 이번 확인에서 VWorld 자체의 현장 거리 사진 API는 확인하지 못함. 별도 Kakao 로드뷰 공식 API는 인근 파노라마 조회·표시를 제공하며 모든 좌표에 사진이 있는 것은 아님. 3D mesh나 제작용 원본 사진 제공을 뜻하지 않음 |
+| 현장 사진/거리 파노라마 API | 지도에서 시설을 클릭하면 해당 좌표 인근의 실제 도로 장면을 보여주고, 없으면 사진 없음으로 표시 | [Kakao 공식 예제](https://apis.map.kakao.com/web/sample/basicRoadview2/)는 제주 좌표에서 지도 클릭→반경 내 파노라마 조회→로드뷰 표시를 구현한다. 외부 로드뷰 링크는 [공식 URL 형식](https://apis.map.kakao.com/web/guide/)으로 만들 수 있다. 앱 안에 로드뷰를 넣으려면 별도 Kakao JavaScript 키와 등록 도메인이 필요하다. 인근 도로에서 시설이 보이는지는 좌표별 확인이 필요하며, 로드뷰 표시가 3D mesh나 제작용 원본 사진 확보를 뜻하지 않음 |
 | 3D 원본 자료를 받아 Bevy에 넣기 | 화면까지 Rust, 로컬 모델 편집·독립 실행 | 현재 VWorld 웹 지도 사용 가능성과 원본 모델 저장·변환 가능성은 별도. 공식 제공 형식·권한·샘플을 확보한 뒤 판단. 지도에서 보이는 건물을 바로 GLB로 내려받을 수 있다고 가정하지 않음 |
 
 [VWorld 3D API 공식 안내](https://www.vworld.kr/dev/v4dv_opnws3dmap3guide_s001.do), [공공데이터포털의 국토부 3D API](https://www.data.go.kr/data/3073144/openapi.do), [운영기관의 제공 서비스](http://www.spacen.or.kr/vworld_mgm/business_info.do), [국토부 2D데이터 API](https://www.data.go.kr/data/15140372/openapi.do), [Kakao 로드뷰 공식 예제](https://apis.map.kakao.com/web/sample/basicRoadview/).
