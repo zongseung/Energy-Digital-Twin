@@ -364,6 +364,51 @@ def facade(kind: str) -> Image.Image:
     return image
 
 
+def drape_imagery(scene: trimesh.Scene, frame: dict, details: list, prefix: str = "harbour_", skip: tuple = ("light", "lantern")) -> dict:
+    """Project the terrain's z17 mosaics from above onto upward faces (normal y >= 0.5) of `prefix` meshes.
+
+    Faces wholly inside a mosaic (and clear of its failed tiles) move to `<mesh>_imagery_<mosaic>` with the same material
+    object the terrain uses, so no image is duplicated. Walls and faces outside every mosaic keep their estimated colour.
+    """
+    materials = {m.name: m for m in (g.visual.material for g in scene.geometry.values() if hasattr(g.visual, "material"))
+                 if m is not None and m.name and m.name.startswith("georeferenced_imagery_z17_")}
+    moved = {}
+    for name in [n for n in scene.geometry if n.startswith(prefix) and not any(s in n for s in skip)]:
+        mesh = scene.geometry[name]
+        mx, my = mercator(mesh.vertices, frame)
+        fx, fy = mx[mesh.faces], my[mesh.faces]
+        boxes = shapely.box(fx.min(1), fy.min(1), fx.max(1), fy.max(1))
+        free, pieces = mesh.face_normals[:, 1] >= .5, []
+        for detail_name, _, metadata in details:
+            material = materials.get(f"georeferenced_imagery_z17_{detail_name}")
+            if material is None:
+                continue
+            w, s, e, n = metadata["bounds"]
+            uv = np.column_stack(((mx - w) / (e - w), (my - s) / (n - s)))
+            hit = free & ((uv >= 0) & (uv <= 1)).all(axis=1)[mesh.faces].all(axis=1)
+            hit &= ~shapely.intersects(shapely.union_all([tile_box(f) for f in metadata["failed_tiles"]]), boxes)
+            if hit.any():
+                pieces.append((f"{name}_imagery_{detail_name}", hit, uv, material))
+                free &= ~hit
+        if not pieces:
+            continue
+        transform = scene.graph[scene.graph.geometry_nodes[name][0]][0]
+        keep = ~np.any([hit for _, hit, _, _ in pieces], axis=0)
+        for part, mask, uv, material in [*pieces, (name, keep, None, mesh.visual.material)]:
+            if not mask.any():
+                scene.delete_geometry(part) if part == name else None
+                continue
+            used = np.unique(mesh.faces[mask])
+            piece = trimesh.Trimesh(mesh.vertices[used], np.searchsorted(used, mesh.faces[mask]), process=False)
+            piece.visual = TextureVisuals(uv=uv[used], material=material) if uv is not None else TextureVisuals(material=material)
+            if part == name:
+                scene.geometry[name] = normals(piece)
+            else:
+                scene.add_geometry(normals(piece), geom_name=part, node_name=part, transform=transform)
+                moved[part] = int(mask.sum())
+    return moved
+
+
 def add_buildings(scene: trimesh.Scene, frame: dict) -> tuple[dict, dict]:
     path = ROOT / "var/rendering/site/scene.json"
     site = json.loads(path.read_text())
@@ -566,6 +611,8 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
     height_at = surface_height(scene)
     roads = add_roads(scene, grid["coordinateFrame"], height_at)
     harbours = add_harbours(scene, grid["coordinateFrame"], height_at)
+    harbours["draped_faces"] = drape_imagery(scene, grid["coordinateFrame"], details)
+    harbours["meshes"] = {n: len(g.faces) for n, g in scene.geometry.items() if n.startswith(("harbour_", "sports_"))}
     onshore = add_onshore_wind(scene, grid["coordinateFrame"], height_at)
     assert len(onshore["facilities"]) == 10 and not {f["node"] for f in onshore["facilities"]} & {f["node"] for f in facilities}
     for facility in onshore["facilities"]:
@@ -949,6 +996,11 @@ def verify(output: Path) -> dict:
     assert manifest["facilities"][0]["id"] == "hub:power_plant:5722"  # the viewer offsets every wind camera from the first wind record
     assert set(harbours["meshes"]) <= set(reopened.graph.nodes) and all(n.startswith(("harbour_", "sports_")) for n in harbours["meshes"])
     assert sum(len(reopened.geometry[n].faces) for n in harbours["meshes"]) == harbours["triangles"] <= harbours["budget"]
+    for name in (n for n in harbours["meshes"] if "_imagery_" in n):  # upward faces textured by the terrain's own z17 mosaic
+        mesh = reopened.geometry[name]
+        assert mesh.visual.material.name.startswith("georeferenced_imagery_z17_") and (mesh.face_normals[:, 1] >= .5 - 1e-6).all()
+        assert ((mesh.visual.uv >= -1e-6) & (mesh.visual.uv <= 1 + 1e-6)).all(), name
+    assert sum(harbours["draped_faces"].values()) > 0
     assert sorted(f["kind"] for f in manifest["facilities"] if f["kind"] != "wind") == ["line", "pv", "pv", "pv", "substation"]
     source_routes = json.loads((ROOT / "var/rendering/grid/manifest.json").read_text())["routes"]
     assert all(a["id"] == b["id"] and a["source_ids"] == b["source_ids"] and
