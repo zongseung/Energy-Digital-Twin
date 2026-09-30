@@ -20,11 +20,17 @@ ssh -p 10000 -N -o ExitOnForwardFailure=yes \
 
 ## 건물·바다 표현 정정 (2026-09-30)
 
-사용자 요청에 따라 단색 수면 변경을 취소하고 바다를 기존 VWorld 영상과 UV로 복원했다. 건물 623개는 실제 건물 경계·제공 높이를 세운 단순 높이 모형이며 실사 3D가 아니다. 기본 화면에서는 숨기고 명시적인 비교용 체크박스로만 켤 수 있다. 마을 시점 버튼도 이 모형을 자동으로 켜지 않는다.
+사용자 요청에 따라 단색 수면 변경을 취소하고 바다를 기존 VWorld 영상과 UV로 복원했다.
 
-현재 수집 디렉터리의 건물 자료는 GeoJSON 경계·높이, 항공영상, DSM이며, 지붕·외벽 텍스처가 포함된 수집 3D 건물 자산은 발견되지 않았다. 생성한 GLB는 원천 수집 3D 모델의 증거가 아니다. 외부 공급 범위는 아직 미확인이다. 파일 감사는 `var/verification/buildings-wind/collected-3d-audit.json`, 브라우저 1280/375px 복원 검사는 `correction-qa.json`에 기록했다.
+**건물(대체, 2026-09-30):** 신창 윤곽 2,661동을 모두 기본 표시한다. 높이 상자가 아니다.
+- 벽 높이: 원천 높이 623동, 층수×3 m 887동, 속성 없음 1층 3.5 m 1,151동. 각 건물의 `height_status`에 기록한다.
+- 지붕: 박공 20° 1,672동, 박공 10° 113동(처마 0.4 m), 평지붕+0.6 m 난간 876동. 지붕 색은 실제 VWorld z19 영상(타일 747장, atlas 4096×2679)이다. 타일이 실패한 건물은 회색 지붕과 `roof_texture: unavailable`로 둔다.
+- 외벽: 절차적 미장·창·문, 금속 골판, 현무암 텍스처다. 층마다 창 한 줄이 생긴다.
+- 위치·윤곽·지붕 영상은 실제다. 지붕 형태·외벽·창·추정 높이는 추정이다. 건물을 누르면 건물별 근거가 보인다.
+- GLB: 20.3 MB에서 34.3 MB, 건물 삼각형 104,758개.
+- 검증: `var/rendering/local/verification.json`. 브라우저 1280/375 결과는 `var/verification/buildings/`에 있다.
 
-현재 서버 GPU PNG와 USD는 건물 추가 전 `local-02` 자산의 검증 기록이다. 이번 수정 자산을 다시 GPU 렌더했다고 주장하지 않는다. 현재 GLB의 해면 영상 복원과 기하 검사는 `var/rendering/local/verification.json`에 있다.
+현재 수집 디렉터리에는 지붕·외벽 텍스처가 포함된 수집 3D 건물 자산이 없다. 생성한 GLB는 원천 3D 모델의 증거가 아니다. 서버 GPU PNG와 USD는 건물 추가 전 `local-02` 자산의 기록이다. 이번 자산을 다시 GPU 렌더했다고 주장하지 않는다.
 
 ## 제주 전체 관측 바람 연동
 
@@ -103,11 +109,13 @@ uv run renderers/twin/build_grid.py
 # 실제 영상 cache와 통합 자산
 python3 renderers/twin/prepare_imagery.py --self-test
 python3 renderers/twin/prepare_imagery.py
+python3 renderers/twin/prepare_imagery.py --roofs   # z19 지붕 atlas → var/rendering/roofs/
 uv run renderers/twin/build_local.py
 uv run renderers/twin/build_local.py --self-test
 docker compose --profile preview up -d preview
 node var/verification/local/browser-qa.mjs
 node var/verification/local/lifecycle-replay.mjs
+node var/verification/buildings/buildings-qa.mjs   # 건물 1280/375
 ```
 
 생성물은 `var/rendering/local/`이며 입력 자산·영상의 SHA, 원천 위치와 독립 rotor 변환, DSM 꼭짓점 높이, EPSG3857 UV·내장 JPEG, 범위 clipping/재진입/경계 교차, 유한 geometry/normal을 검사한다. 브라우저 검사 범위는375/768/1280px의 동일 장면 시점·21개 선택 목록·레이어/단축버튼 복구·단일 GLB 로드·회전 시연·HTTP실패·context-loss다. 실제 장치 FPS/전체 접근성/실측 형상 인증을 뜻하지 않는다.

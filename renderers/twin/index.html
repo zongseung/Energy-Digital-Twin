@@ -39,8 +39,8 @@
         <label class="layer-toggle"><input id="layer-substation" type="checkbox" checked disabled><span class="legend station">구역 내 변전소</span></label>
         <label class="layer-toggle"><input id="layer-pv" type="checkbox" checked disabled><span class="legend pv">태양광 예시 3곳</span></label>
         <label class="layer-toggle"><input id="layer-terrain" type="checkbox" checked disabled>실제 영상·지형</label>
-        <label class="layer-toggle"><input id="layer-buildings" type="checkbox" disabled><span id="buildings-count">단순 높이 모형 · 비교용</span></label>
-        <p class="muted note">건물은 경계·높이를 세운 단순 모형입니다. 실제 지붕·외벽 형상이 없어 기본 화면에서는 숨겼습니다.</p>
+        <label class="layer-toggle"><input id="layer-buildings" type="checkbox" checked disabled><span>건물 · 위치·윤곽·지붕영상 실제 / 형태·외벽·일부 높이 추정</span><span id="buildings-count" hidden></span></label>
+        <p class="muted note">신창 건물 2,661동. 위치·윤곽은 VWorld 건물정보, 지붕 색은 VWorld z19 항공영상(없으면 회색)입니다. 박공·평지붕 난간, 외벽·창, 높이 일부는 추정입니다: 원천 높이 623동 · 층수×3 m 887동 · 속성 없음 1층 3.5 m 1,151동. 건물을 누르면 근거가 보입니다.</p>
         <label class="layer-toggle"><input id="layer-sea" type="checkbox" checked disabled>바다 · 기존 영상</label>
       </fieldset>
       <h2 id="selected-name">시설 선택</h2><p id="selection-status" role="status">원천 자료를 불러오는 중</p>

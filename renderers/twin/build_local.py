@@ -10,17 +10,20 @@ uv run renderers/twin/build_local.py --self-test
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from datetime import datetime, timezone
 from io import BytesIO
 import json
+import math
 from pathlib import Path
+import random
 import struct
 from tempfile import TemporaryDirectory
 
 import numpy as np
 import shapely
 import trimesh
-from PIL import Image
+from PIL import Image, ImageDraw
 from rasterio.warp import transform as project_crs
 from shapely.geometry import Polygon
 from shapely.geometry.polygon import orient
@@ -133,33 +136,148 @@ def footprint_polygons(record: dict) -> list[Polygon]:
                     [np.asarray(ring)[:, [0, 2]] for ring in rings[1:]]) for rings in record["polygons"]]
 
 
-def building_meshes(polygons: list[Polygon], height: float, center: np.ndarray) -> tuple[trimesh.Trimesh, trimesh.Trimesh]:
-    """Extrude exact rings and constrained roof triangles, including courtyard holes."""
-    assert np.isfinite(height) and height > 0
-    walls, roofs = [], []
+PITCH = {"gable_house": 20, "gable_shed": 10}
+
+
+def building_rule(props: dict, parts: list[Polygon]) -> tuple[str, float, str]:
+    """Height source (provider > floors x 3 m > one 3.5 m storey) and roof form from footprint attributes."""
+    height = float(props.get("height") or 0)
+    floors = int(props.get("grnd_flr") or 0)
+    status, walls = (("provider", height) if math.isfinite(height) and height > 0 else
+                     ("floors_estimated", floors * 3.0) if floors > 0 else ("default_estimated", 3.5))
+    union = shapely.union_all(parts)
+    rectangular = len(parts) == 1 and not parts[0].interiors and union.area / union.minimum_rotated_rectangle.area >= .85
+    use, strct = props.get("usability", ""), props.get("strct_cd", "")
+    low = strct in ("11", "12", "13", "32", "33") or (not strct and max(floors, 1) == 1)
+    if rectangular and low and use in ("01000", "", None):
+        return status, walls, "gable_house"
+    if rectangular and low and use in ("18000", "21000"):
+        return status, walls, "gable_shed"
+    return status, walls, "flat_parapet"
+
+
+def sides(polygon: Polygon, y0: float, y1: float, center: np.ndarray) -> tuple[list, list]:
+    """Vertical quads on every oriented ring; u is metres along the ring."""
+    quads, along = [], []
+    for ring in [polygon.exterior, *polygon.interiors]:
+        points, start = np.asarray(ring.coords) - center, 0.0
+        for a, b in zip(points[:-1], points[1:]):
+            length = float(np.linalg.norm(b - a))
+            if length == 0:
+                continue
+            quads.append([[a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], y1, b[1]], [a[0], y1, a[1]]])
+            along += [start, start + length, start + length, start]
+            start += length
+    return quads, along
+
+
+def cap(polygon: Polygon, y: float, center: np.ndarray) -> list:
+    """Upward constrained Delaunay triangles, courtyard holes kept."""
+    triangles = shapely.constrained_delaunay_triangles(polygon)
+    assert np.isclose(sum(t.area for t in triangles.geoms), polygon.area, atol=1e-6)
+    result = []
+    for triangle in triangles.geoms:
+        points = np.asarray(triangle.exterior.coords)[:3] - center
+        vertices = np.column_stack((points[:, 0], np.full(3, y), points[:, 1]))
+        result.append(vertices if np.cross(vertices[1] - vertices[0], vertices[2] - vertices[0])[1] > 0 else vertices[::-1])
+    return result
+
+
+def to_mesh(quads: list, triangles: list) -> trimesh.Trimesh:
+    faces = [(np.arange(len(quads))[:, None, None] * 4 + np.array([[0, 3, 2], [0, 2, 1]])).reshape(-1, 3),
+             np.arange(len(triangles) * 3).reshape(-1, 3) + len(quads) * 4]
+    return trimesh.Trimesh(vertices=np.concatenate([np.reshape(quads, (-1, 3)), np.reshape(triangles, (-1, 3))]),
+                           faces=np.concatenate(faces), process=False)
+
+
+def building_meshes(polygons: list[Polygon], walls: float, center: np.ndarray, rule: str,
+                    storey: float) -> tuple[trimesh.Trimesh, trimesh.Trimesh]:
+    """Exact footprint walls to the eave line, then a gable over the minimum rectangle or a flat roof with a parapet.
+
+    Wall UV is in metres: u = along / 4 m, v = height / 4 storeys, so each storey is one window row.
+    """
+    assert np.isfinite(walls) and walls > 0 and storey > 0
+    wall_quads, wall_u, wall_triangles, triangle_u, roof_quads, roof_triangles = [], [], [], [], [], []
     for polygon in polygons:
         assert polygon.is_valid and polygon.area > 0
         polygon = orient(polygon, sign=1)
-        for ring in [polygon.exterior, *polygon.interiors]:
-            points = np.asarray(ring.coords) - center
-            for a, b in zip(points[:-1], points[1:]):
-                if np.array_equal(a, b):
-                    continue
-                walls.append([[a[0], 0, a[1]], [b[0], 0, b[1]],
-                              [b[0], height, b[1]], [a[0], height, a[1]]])
-        triangles = shapely.constrained_delaunay_triangles(polygon)
-        assert np.isclose(sum(t.area for t in triangles.geoms), polygon.area, atol=1e-6)
-        for triangle in triangles.geoms:
-            points = np.asarray(triangle.exterior.coords)[:3] - center
-            vertices = np.column_stack((points[:, 0], np.full(3, height), points[:, 1]))
-            if np.cross(vertices[1] - vertices[0], vertices[2] - vertices[0])[1] < 0:
-                vertices = vertices[::-1]
-            roofs.append(vertices)
-    wall_faces = (np.arange(len(walls))[:, None, None] * 4 + np.array([[0, 3, 2], [0, 2, 1]])).reshape(-1, 3)
-    wall_mesh = normals(trimesh.Trimesh(vertices=np.asarray(walls).reshape(-1, 3), faces=wall_faces, process=False))
-    roof_mesh = normals(trimesh.Trimesh(vertices=np.asarray(roofs).reshape(-1, 3),
-                                      faces=np.arange(len(roofs) * 3).reshape(-1, 3), process=False))
-    return wall_mesh, roof_mesh
+        quads, along = sides(polygon, 0, walls, center)
+        wall_quads += quads
+        wall_u += along
+        if rule == "flat_parapet":
+            roof_triangles += cap(polygon, walls, center)
+            for part in shapely.get_parts(polygon.difference(polygon.buffer(-.2, join_style="mitre"))):
+                part = orient(part, sign=1)  # 0.2 m thick, 0.6 m high parapet along every ring
+                roof_quads += sides(part, walls, walls + .6, center)[0]
+                roof_triangles += cap(part, walls + .6, center)
+    if rule != "flat_parapet":
+        rect = orient(shapely.union_all(polygons).minimum_rotated_rectangle, sign=1)
+        corners = np.asarray(rect.exterior.coords)[:4] - center
+        edges = np.roll(corners, -1, axis=0) - corners
+        lengths = np.linalg.norm(edges, axis=1)
+        i = int(np.argmax(lengths))  # ridge along the long side
+        axis, across = edges[i] / lengths[i], edges[(i + 1) % 4] / lengths[(i + 1) % 4]
+        half_long, half_short = lengths[i] / 2 + .4, lengths[(i + 1) % 4] / 2 + .4  # 0.4 m eaves
+        slope = np.tan(np.radians(PITCH[rule]))
+        plate, ridge = walls + .4 * slope, walls + half_short * slope
+        mid = corners.mean(axis=0)
+        # Close wall top to roof underside on the rectangle, then the two gable-end triangles.
+        quads, along = sides(rect, walls, plate, center)
+        wall_quads += quads
+        wall_u += along
+        starts = np.concatenate(([0], np.cumsum(lengths)))
+        for j in ((i + 1) % 4, (i + 3) % 4):
+            a, b = corners[j], corners[(j + 1) % 4]
+            apex = (a + b) / 2
+            vertices = np.array([[a[0], plate, a[1]], [b[0], plate, b[1]], [apex[0], ridge, apex[1]]])
+            u = [starts[j], starts[j] + lengths[j], starts[j] + lengths[j] / 2]
+            if np.dot(np.cross(vertices[1] - vertices[0], vertices[2] - vertices[0])[[0, 2]], apex - mid) < 0:
+                vertices, u = vertices[::-1], u[::-1]
+            wall_triangles.append(vertices)
+            triangle_u += u
+        for side in (1, -1):
+            eave0, eave1 = mid - axis * half_long + side * across * half_short, mid + axis * half_long + side * across * half_short
+            ridge0, ridge1 = mid - axis * half_long, mid + axis * half_long
+            for triangle in (((eave0, walls), (eave1, walls), (ridge1, ridge)), ((eave0, walls), (ridge1, ridge), (ridge0, ridge))):
+                vertices = np.array([[p[0], y, p[1]] for p, y in triangle])
+                roof_triangles.append(vertices if np.cross(vertices[1] - vertices[0], vertices[2] - vertices[0])[1] > 0 else vertices[::-1])
+    wall_mesh = to_mesh(wall_quads, wall_triangles)
+    wall_mesh.visual = TextureVisuals(uv=np.column_stack((np.asarray(wall_u + triangle_u) / 4,
+                                                         wall_mesh.vertices[:, 1] / (4 * storey))))
+    return normals(wall_mesh), normals(to_mesh(roof_quads, roof_triangles))
+
+
+def facade(kind: str) -> Image.Image:
+    """512 px = 4 m wide x 4 storeys (128 px rows, ground floor at the image bottom where v = 0)."""
+    image = Image.new("RGB", (512, 512), {"plaster": (224, 219, 206), "metal": (188, 196, 200), "basalt": (74, 74, 76)}[kind])
+    draw, rng = ImageDraw.Draw(image), random.Random(13)
+    if kind == "metal":
+        for x in range(0, 512, 16):
+            draw.rectangle([x, 0, x + 5, 511], fill=(160, 170, 176))
+    if kind == "basalt":
+        for top in range(0, 512, 26):
+            x = -rng.randrange(40)
+            while x < 512:
+                w, shade = rng.randrange(34, 70), rng.randrange(52, 100)
+                draw.rounded_rectangle([x + 2, top + 2, x + w - 2, top + 24], 7, fill=(shade, shade, shade + 3))
+                x += w
+    frame, glass, door = (240, 238, 232), (58, 72, 84), (104, 76, 52)
+    for row in range(4):
+        base = 511 - row * 128  # storey floor line in image rows
+        draw.rectangle([0, base - 127, 511, base - 124], fill=(150, 146, 138) if kind != "basalt" else (60, 60, 62))
+        if kind == "metal":
+            continue
+        windows = [(260, 460)] if row == 0 else [(51, 205), (307, 461)]
+        if kind == "basalt":
+            windows = [(300, 400)]
+        for x0, x1 in windows:  # sill ~0.9 m, head ~2.2 m of a 3 m storey
+            draw.rectangle([x0, base - 94, x1, base - 38], fill=frame)
+            draw.rectangle([x0 + 5, base - 89, x1 - 5, base - 43], fill=glass)
+            draw.line([(x0 + x1) // 2, base - 89, (x0 + x1) // 2, base - 43], fill=frame, width=4)
+        if row == 0:  # ground-floor door at one side
+            draw.rectangle([40, base - 90, 155, base], fill=frame)
+            draw.rectangle([46, base - 85, 149, base], fill=door)
+    return image
 
 
 def add_buildings(scene: trimesh.Scene, frame: dict) -> tuple[dict, dict]:
@@ -170,8 +288,13 @@ def add_buildings(scene: trimesh.Scene, frame: dict) -> tuple[dict, dict]:
     provider = next(s for s in site["metadata"]["sources"] if s.get("file") == "building_info.geojsonl")
     provider_path = ROOT / ".worktrees/data/var/data/geography/source-03e02ef" / provider["file"]
     assert sha(provider_path) == provider["sha256"]
+    roofs = ROOT / "var/rendering/roofs"
+    atlas = json.loads((roofs / "atlas.json").read_text())
+    assert atlas["zoom"] == 19 and atlas["crs"] == "EPSG:3857" and sha(roofs / "atlas.jpg") == atlas["sha256"]
     sources = [{**provider, "path": source_path(provider_path)},
-               {"path": source_path(path), "sha256": sha(path), "kind": "prepared_clipped_footprints"}]
+               {"path": source_path(path), "sha256": sha(path), "kind": "prepared_clipped_footprints"},
+               {"path": source_path(roofs / "atlas.jpg"), "sha256": atlas["sha256"], "kind": "vworld_z19_roof_atlas"},
+               {"path": source_path(roofs / "atlas.json"), "sha256": sha(roofs / "atlas.json"), "kind": "vworld_z19_roof_atlas_index"}]
     for name in ("sinchang_dem.tif", "sinchang_wbm.tif"):
         entry = next(s for s in site["metadata"]["sources"] if Path(s.get("path", "")).name == name)
         source = ROOT / ".worktrees/data" / entry["path"]
@@ -184,18 +307,25 @@ def add_buildings(scene: trimesh.Scene, frame: dict) -> tuple[dict, dict]:
                                     terrain[:, 0], terrain[:, 2])
     samples = terrain[(np.asarray(site["terrain"]["water_classes"]) == 0) & ~covered]
     assert np.isfinite(samples).all()
-    wall_material = PBRMaterial(name="building_neutral_walls", baseColorFactor=[192, 190, 179, 255],
-                                metallicFactor=0, roughnessFactor=.9, alphaMode="OPAQUE")
-    roof_material = PBRMaterial(name="building_neutral_flat_roofs", baseColorFactor=[133, 139, 136, 255],
-                                metallicFactor=0, roughnessFactor=.9, alphaMode="OPAQUE")
-    records = []
+    with Image.open(roofs / "atlas.jpg") as source:
+        atlas_image = source.copy()
+        atlas_image.format = source.format  # keep JPEG in the GLB
+    roof_imagery = PBRMaterial(name="roof_imagery", baseColorTexture=atlas_image, metallicFactor=0,
+                               roughnessFactor=.9, doubleSided=True)
+    neutral_roof = PBRMaterial(name="building_neutral_roof", baseColorFactor=[133, 139, 136, 255],
+                               metallicFactor=0, roughnessFactor=.9, doubleSided=True)
+    wall_materials = {kind: PBRMaterial(name=f"building_wall_{kind}", baseColorTexture=facade(kind), metallicFactor=0,
+                                        roughnessFactor=.6 if kind == "metal" else .9) for kind in ("plaster", "metal", "basalt")}
+    origin = frame["origin_easting_northing"]
+    records, clamped = [], 0
     for building in site["buildings"]:
-        height = building["height_m"]
-        if height is None:
-            assert not building["extrusion_allowed"]
-            continue
-        assert np.isfinite(height) and height > 0 and height == float(building["source_properties"]["height"])
+        props = building["source_properties"]
         parts = polygons[building["id"]]
+        status, walls, rule = building_rule(props, parts)
+        floors = int(props.get("grnd_flr") or 0)
+        floors_used = floors if floors > 0 else max(1, round(walls / 3)) if status == "provider" else 1
+        storey = walls / floors_used
+        # ponytail: provider height is used as the eave (wall) height because the source does not define it; replace with photogrammetry (②).
         center = np.asarray(shapely.union_all(parts).representative_point().coords[0])
         local = samples[np.sum((samples[:, [0, 2]] - center) ** 2, axis=1) <= 60 ** 2]
         assert len(local) >= 3, f"insufficient local ground samples: {building['id']}"
@@ -204,33 +334,52 @@ def add_buildings(scene: trimesh.Scene, frame: dict) -> tuple[dict, dict]:
         node = "building_" + building["id"].replace(".", "_").replace(":", "_")
         position = [float(center[0]), ground, float(center[1])]
         scene.graph.update(frame_to=node, frame_from="world", matrix=translation(*position))
-        for suffix, mesh, material in zip(("walls", "roof"), building_meshes(parts, height, center),
-                                           (wall_material, roof_material)):
-            mesh.visual = TextureVisuals(material=material)
+        wall_mesh, roof_mesh = building_meshes(parts, walls, center, rule, storey)
+        wall_kind = "basalt" if props.get("strct_cd") == "13" else "metal" if props.get("usability") in ("18000", "21000") else "plaster"
+        wall_mesh.visual.material = wall_materials[wall_kind]
+        entry = atlas["entries"].get(building["id"])
+        if entry:
+            world = roof_mesh.vertices[:, [0, 2]] + center
+            mx, my = project_crs(frame["horizontal_crs"], "EPSG:3857", world[:, 0] + origin[0], origin[1] - world[:, 1])
+            (x0, y0, x1, y1), (west, south, east, north) = entry["atlas_px"], entry["mercator_bbox"]
+            px = x0 + (np.asarray(mx) - west) / (east - west) * (x1 - x0)
+            py = y0 + (north - np.asarray(my)) / (north - south) * (y1 - y0)
+            # ponytail: eave corners beyond the 1 m crop margin are clamped to the crop edge, never into a neighbour's cell.
+            clipped = np.clip(px, x0 + .5, x1 - .5), np.clip(py, y0 + .5, y1 - .5)
+            clamped += int(np.count_nonzero((np.abs(clipped[0] - px) > 1) | (np.abs(clipped[1] - py) > 1)))
+            roof_mesh.visual = TextureVisuals(uv=np.column_stack((clipped[0] / atlas["width"], 1 - clipped[1] / atlas["height"])),
+                                              material=roof_imagery)
+        else:
+            roof_mesh.visual = TextureVisuals(material=neutral_roof)
+        for suffix, mesh in (("walls", wall_mesh), ("roof", roof_mesh)):
             scene.add_geometry(mesh, geom_name=f"{node}_{suffix}", node_name=f"{node}_{suffix}", parent_node_name=node)
-        records.append({"id": building["id"], "node": node, "position": position, "height_m": height,
-                        "ground_m": ground, "ground_sample_count": len(local),
+        records.append({"id": building["id"], "node": node, "position": position, "height_status": status,
+                        "walls_m": walls, "roof_top_m": float(roof_mesh.bounds[1, 1]), "floors_used": floors_used,
+                        "storey_m": storey, "roof_rule": rule, "roof_texture": "vworld_z19" if entry else "unavailable",
+                        "wall_texture": wall_kind, "ground_m": ground, "ground_sample_count": len(local),
                         "source_dsm_anchor_m": building["base_height_m"],
                         "footprint_area_m2": sum(p.area for p in parts), "polygon_count": len(parts),
-                        "hole_count": sum(len(p.interiors) for p in parts),
-                        "height_status": "provider_positive_unverified"})
-    assert records
+                        "hole_count": sum(len(p.interiors) for p in parts)})
     centers = np.asarray([r["position"] for r in records])
     nearby = np.sum((centers[:, None, [0, 2]] - centers[None, :, [0, 2]]) ** 2, axis=-1) <= 100 ** 2
     focus = centers[np.argmax(nearby.sum(axis=1))]
     target = (focus + [0, 4, 0]).tolist()
     camera = {"position": (focus + [-100, 95, 130]).tolist(), "target": target, "fov": 48, "near": .15, "far": 70000}
     return {"count": len(records), "source_count": len(site["buildings"]),
-            "display_label": "단순 높이 모형", "default_visible": False,
-            "excluded_unknown_height_count": len(site["buildings"]) - len(records),
+            "display_label": "건물 · 위치·윤곽·지붕영상 실제 / 형태·외벽·일부 높이 추정", "default_visible": True,
+            "counts": {key: dict(Counter(r[key] for r in records)) for key in ("height_status", "roof_rule", "roof_texture", "wall_texture")},
+            "roof_atlas": {key: atlas[key] for key in ("zoom", "width", "height", "tile_count", "failed_tile_count", "acquired_at", "attribution")}
+            | {"uv_clamped_vertex_count": clamped},
             "bbox_lon_lat": site["aoi_bbox"], "sources": sources, "records": records,
-            "height_policy": "Only finite positive VWorld LT_C_BLDGINFO provider heights in metres; zero/missing heights excluded. No floor-count inference.",
+            "height_policy": "Eave (wall) height: finite positive VWorld LT_C_BLDGINFO provider height (provider); else ground floors x 3.0 m (floors_estimated); else one 3.5 m storey (default_estimated).",
+            "roof_policy": "Gable along the minimum-rotated-rectangle long axis with 0.4 m eaves (20 deg houses, 10 deg warehouses/animal-plant buildings) only for single-ring footprints filling >= 85% of that rectangle with masonry/light-steel structure or no attributes and one storey; otherwise flat roof with a 0.2 m x 0.6 m parapet.",
             "ground_policy": "20th percentile of native Copernicus DSM land sample centres within 60 m of each footprint representative point, excluding centres covered by any of the 2661 source footprints; constant base per building.",
-            "materials": "Neutral opaque PBR walls and flat roofs; footprint rings and courtyard holes retained.",
-            "limits": ["Provider heights are not field-survey verified; flat roofs and neutral colours are display choices, not measured roof forms or facades.",
-                       "DSM includes roofs and vegetation. Local low-percentile ground is approximate, not a DTM, and cannot remove all roof contamination.",
-                       "Underlying DSM is unchanged; some walls may intersect terrain and visible height can be less than the provider extrusion height.",
-                       "Bounded Sinchang coverage only; unknown heights and source overlaps remain unresolved."]}, camera
+            "materials": "Roofs: one shared VWorld Satellite z19 atlas projected top-down in EPSG:3857 (neutral grey when no complete crop). Walls: procedural 512 px plaster-with-windows, corrugated metal or basalt textures in metre UVs (4 m x 4 storeys).",
+            "limits": ["Footprint position/outline and roof imagery are actual; roof shape, facade colour, windows/doors and non-provider heights are estimates.",
+                       "Provider height meaning (eave or ridge) is undefined in the source; it is used as the eave height.",
+                       "Roof imagery is a top-down orthophoto crop; leaning or tall objects and neighbouring ground can appear on roof edges.",
+                       "DSM includes roofs and vegetation. Local low-percentile ground is approximate, not a DTM; some walls may intersect terrain.",
+                       "Bounded Sinchang coverage only; source footprint overlaps remain unresolved."]}, camera
 
 
 def sea_metadata(scene: trimesh.Scene, grid: dict) -> dict:
@@ -371,8 +520,8 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
                f"{imagery_metadata['documentation']}\n{imagery_metadata['notice']}\n" +
                "Changes: original georeferenced mosaic restored to both existing land DSM and unchanged WBM sea geometry in EPSG:3857 UV coordinates.\n" +
                "\n--- Building source ---\nVWorld LT_C_BLDGINFO — https://api.vworld.kr/req/data\n" +
-               "VWorld provider terms; source attribution required. Prepared Sinchang footprints, positive provider heights only.\n" +
-               "Optional comparison only, hidden by default in the local viewer: simplified footprint/height extrusions, not textured 3D building reconstruction. Ground is an approximate local lower-percentile Copernicus DSM value, not surveyed ground or DTM.\n")
+               "VWorld provider terms; source attribution required. Prepared Sinchang footprints (all 2661); provider heights where positive, otherwise floors x 3 m or one 3.5 m storey (recorded per building).\n" +
+               "Roof imagery: VWorld Satellite WMTS z19 crops (공간정보 오픈플랫폼(브이월드) / 국토교통부), local preview cache. Roof forms, parapets, facade textures and windows are procedural estimates, not a textured 3D building reconstruction. Ground is an approximate local lower-percentile Copernicus DSM value, not surveyed ground or DTM.\n")
     for facility in facilities:
         if "photo_asset" in facility:
             photo = facility["photo_asset"]
@@ -481,35 +630,79 @@ def verify(output: Path) -> dict:
             record = json.loads(line)
             if record["id"] in prepared:
                 source_records[record["id"]] = record
-    assert len(source_records) == len(prepared) == buildings["source_count"]
-    assert {r["id"] for r in buildings["records"]} == {b["id"] for b in prepared.values() if b["height_m"] is not None}
-    assert buildings["count"] == len(buildings["records"]) == 623
-    assert buildings["excluded_unknown_height_count"] == buildings["source_count"] - buildings["count"] == 2038
+    assert len(source_records) == len(prepared) == buildings["source_count"] == 2661
+    assert [r["id"] for r in buildings["records"]] == [b["id"] for b in site["buildings"]]
+    assert buildings["count"] == len(buildings["records"]) == 2661 and buildings["default_visible"] is True
+    for key in ("height_status", "roof_rule", "roof_texture"):
+        counts = Counter(r[key] for r in buildings["records"])
+        assert counts == buildings["counts"][key] and sum(counts.values()) == 2661, key
+    assert set(buildings["counts"]["height_status"]) <= {"provider", "floors_estimated", "default_estimated"}
+    assert set(buildings["counts"]["roof_rule"]) <= {"gable_house", "gable_shed", "flat_parapet"}
+    atlas = json.loads((ROOT / "var/rendering/roofs/atlas.json").read_text())
     for record in buildings["records"]:
         building = prepared[record["id"]]
         source = source_records[record["id"]]
         assert source["properties"] == building["source_properties"] and source["geometry"] == building["source_geometry"]
-        assert record["height_m"] == building["height_m"] == float(source["properties"]["height"]) > 0
+        parts = footprint_polygons(building)
+        status, walls_m, rule = building_rule(source["properties"], parts)
+        assert (record["height_status"], record["walls_m"], record["roof_rule"]) == (status, walls_m, rule)
+        assert record["storey_m"] == (3.0 if status == "floors_estimated" else walls_m / record["floors_used"])
         node = record["node"]
-        assert np.allclose(reopened.graph[node][0][:3, 3], record["position"], atol=1e-6)
+        position = np.asarray(record["position"])
+        assert np.allclose(reopened.graph[node][0][:3, 3], position, atol=1e-6)
         wall, roof = (reopened.geometry[f"{node}_{suffix}"] for suffix in ("walls", "roof"))
-        assert np.allclose(wall.bounds[:, 1], [0, record["height_m"]], atol=1e-5)
-        assert np.allclose(roof.vertices[:, 1], record["height_m"], atol=1e-5)
-        assert np.all(roof.face_normals[:, 1] > .999) and np.allclose(wall.face_normals[:, 1], 0, atol=1e-6)
-        assert np.isclose(roof.area, record["footprint_area_m2"], rtol=1e-5, atol=.002)
-        polygons = shapely.union_all(footprint_polygons(building))
-        for triangle in roof.triangles:
-            world = triangle[:, [0, 2]] + np.asarray(record["position"])[[0, 2]]
-            assert polygons.buffer(.001).covers(Polygon(world)), record["id"]
-    # A concave footprint with an interior courtyard must retain its hole and outward wall normals.
+        # Metre UVs: u = metres along the wall / 4, v = height / 4 storeys (one window row per storey).
+        assert np.allclose(wall.visual.uv[:, 1] * 4 * record["storey_m"], wall.vertices[:, 1], atol=1e-4)
+        low = wall.vertices[:, 1] < walls_m - 1e-6
+        assert np.isclose(wall.visual.uv[low, 0].max(), shapely.union_all(parts).exterior.length / 4, atol=1e-3)
+        assert np.isclose(wall.bounds[0, 1], 0, atol=1e-5) and np.isclose(roof.bounds[0, 1], walls_m, atol=1e-5)
+        footprint = shapely.union_all(parts)
+        roof_xz = roof.vertices[:, [0, 2]] + position[[0, 2]]
+        if rule == "flat_parapet":
+            assert np.isclose(roof.bounds[1, 1], walls_m + .6, atol=1e-5)  # 0.6 m parapet
+            assert shapely.contains_xy(footprint.buffer(.001), roof_xz[:, 0], roof_xz[:, 1]).all(), record["id"]
+            assert np.isclose(roof.area_faces[roof.face_normals[:, 1] > .999].sum(), footprint.area + sum(
+                p.difference(p.buffer(-.2, join_style="mitre")).area for p in parts), rtol=1e-4)
+        else:
+            assert roof.bounds[1, 1] > walls_m and np.isclose(record["roof_top_m"], roof.bounds[1, 1], atol=1e-5)
+            rect = footprint.minimum_rotated_rectangle
+            assert shapely.contains_xy(rect.buffer(.401, join_style="mitre"), roof_xz[:, 0], roof_xz[:, 1]).all()
+            assert not shapely.contains_xy(rect.buffer(.39, join_style="mitre"), roof_xz[:, 0], roof_xz[:, 1]).all()
+            assert np.allclose(roof.face_normals[:, 1], np.cos(np.radians(20 if rule == "gable_house" else 10)), atol=1e-6)
+        if record["roof_texture"] == "vworld_z19":
+            x0, y0, x1, y1 = atlas["entries"][record["id"]]["atlas_px"]
+            px, py = roof.visual.uv[:, 0] * atlas["width"], (1 - roof.visual.uv[:, 1]) * atlas["height"]
+            assert ((roof.visual.uv >= 0) & (roof.visual.uv <= 1)).all()
+            assert (px >= x0).all() and (px <= x1).all() and (py >= y0).all() and (py <= y1).all(), record["id"]
+            assert roof.visual.material.name == "roof_imagery"
+        else:
+            assert record["id"] not in atlas["entries"] and roof.visual.material.name == "building_neutral_roof"
+    # Zero, NaN and infinite provider heights fall through to floors, then the one-storey default.
+    square = [Polygon([(0, 0), (8, 0), (8, 6), (0, 6)])]
+    for height in ("0", "nan", "inf", "-3", ""):
+        assert building_rule({"height": height, "grnd_flr": "2"}, square)[:2] == ("floors_estimated", 6.0)
+        assert building_rule({"height": height, "grnd_flr": "0"}, square)[:2] == ("default_estimated", 3.5)
+    assert building_rule({"height": "4", "grnd_flr": "1", "strct_cd": "12", "usability": "01000"}, square) == ("provider", 4.0, "gable_house")
+    assert building_rule({"grnd_flr": "1", "strct_cd": "12", "usability": "18000"}, square)[2] == "gable_shed"
+    assert building_rule({"grnd_flr": "3", "strct_cd": "21", "usability": "01000"}, square)[2] == "flat_parapet"
+    # A concave footprint with an interior courtyard is never gabled; walls and parapet keep outward normals.
     example = Polygon([(0, 0), (12, 0), (12, 4), (8, 4), (8, 12), (0, 12)],
                       holes=[[(2, 2), (4, 2), (4, 4), (2, 4)]])
-    walls, roof = building_meshes([example], 7.5, np.zeros(2))
-    assert np.isclose(roof.area, example.area) and np.allclose(walls.bounds[:, 1], [0, 7.5])
-    assert all(example.covers(Polygon(t[:, [0, 2]])) for t in roof.triangles)
-    outside = walls.triangles_center[:, [0, 2]] + walls.face_normals[:, [0, 2]] * .01
-    assert not shapely.intersects_xy(example, outside[:, 0], outside[:, 1]).any()
-    assert np.all(roof.face_normals[:, 1] > .999)
+    assert building_rule({"strct_cd": "12", "grnd_flr": "1"}, [example])[2] == "flat_parapet"
+    walls, roof = building_meshes([example], 7.5, np.zeros(2), "flat_parapet", 3.75)
+    assert np.allclose(walls.bounds[:, 1], [0, 7.5]) and np.allclose(roof.bounds[:, 1], [7.5, 8.1])
+    assert all(example.buffer(1e-9).covers(Polygon(t[:, [0, 2]])) for t in roof.triangles if abs(np.ptp(t[:, 1])) < 1e-9)
+    ring = example.difference(example.buffer(-.2, join_style="mitre"))
+    for mesh, solid in ((walls, example), (roof, ring)):
+        side = np.abs(mesh.face_normals[:, 1]) < 1e-6
+        outside = mesh.triangles_center[side][:, [0, 2]] + mesh.face_normals[side][:, [0, 2]] * .01
+        assert side.any() and not shapely.intersects_xy(solid, outside[:, 0], outside[:, 1]).any()
+    # A 10 x 6 m house: 20 degree gable along the long axis, 0.4 m eaves, closed gable ends.
+    walls, roof = building_meshes([Polygon([(0, 0), (10, 0), (10, 6), (0, 6)])], 3.0, np.zeros(2), "gable_house", 3.0)
+    assert np.isclose(roof.bounds[1, 1], 3 + 3.4 * np.tan(np.radians(20))) and np.isclose(walls.bounds[1, 1], roof.bounds[1, 1])
+    assert np.allclose(roof.bounds[:, [0, 2]], [[-.4, -.4], [10.4, 6.4]]) and len(roof.faces) == 4
+    ridge = roof.vertices[np.isclose(roof.vertices[:, 1], roof.bounds[1, 1])]
+    assert np.allclose(ridge[:, 2], 3) and np.all(roof.face_normals[:, 1] > 0)
     for f in manifest["facilities"]:
         original = originals["twin" if f["kind"] == "wind" else "grid"]
         assert f["node"] in reopened.graph.nodes
@@ -534,15 +727,16 @@ def verify(output: Path) -> dict:
                a["coordinates"] == b["coordinates"] and a["points"] == b["points"]
                for a, b in zip(manifest["routes"], source_routes))
     return {"status": "PASS", "facilities": len(manifest["facilities"]), "rotors": 10,
-            "buildings": buildings["count"], "excluded_unknown_building_heights": buildings["excluded_unknown_height_count"],
+            "buildings": buildings["count"], "building_counts": buildings["counts"],
             "sea_source_geometry_unchanged": True, "sea_original_imagery_restored": True,
             "display_routes": sum(bool(r["paths"]) for r in manifest["routes"]), "coast_paths": len(manifest["coast"]),
             "reopened_meshes": len(reopened.geometry), "checks": ["source hashes", "reopened GLB", "frame and units",
             "facility and rotor transforms", "unaltered DSM vertices and projected UV", "embedded satellite JPEG",
             "source DSM min/max and 100+ distinct heights without exaggeration", "finite vertices and unit normals",
             "source route IDs/coordinates", "path/coast clipping and reentry",
-            "623 building IDs/properties/geometries and heights audited against raw provider source",
-            "building roof area, concavity, courtyard hole and outward normals",
+            "2661 building IDs/properties/geometries audited against raw provider source; height status and roof rule recomputed",
+            "gable ridge/eaves within 0.4 m of the rectangle, 0.6 m parapets, metre wall UVs, roof UVs inside each building's atlas cell",
+            "zero/NaN/infinite provider heights fall through; courtyard parapet and outward normals",
             "unchanged WBM sea vertices/faces, restored source imagery pixels and all sea UVs, water-source hash"]}
 
 

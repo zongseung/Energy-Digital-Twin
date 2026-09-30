@@ -101,13 +101,23 @@ export async function loadGrid() {
     object.add(marker); attach(record, marker); records.push(record);
   }
   for (const layer of ['terrain', 'buildings', 'sea']) layers.set(layer, []);
+  const buildings = new Map((data.buildings?.records || []).map((b) => [b.node, b]));
+  const heightBasis = {provider:'원천 높이', floors_estimated:'층수×3 m 추정', default_estimated:'속성 없음 · 1층 3.5 m 추정'};
+  const roofBasis = {gable_house:'박공 20° 추정', gable_shed:'박공 10° 추정', flat_parapet:'평지붕·난간 추정'};
   gltf.scene.traverse((node) => {
     if (!node.isMesh) return;
     const layer = node.name.startsWith('building_') ? 'buildings' : node.name === 'ocean_surface' ? 'sea' : /terrain|shore|landcover|road/.test(node.name) ? 'terrain' : null;
     if (layer) layers.get(layer).push(node);
+    const b = layer === 'buildings' && buildings.get(node.parent?.name);
+    if (!b) return;
+    // Clicking a building shows its per-building actual/estimated basis in the existing detail list.
+    node.userData.facility = b.record ||= {id:b.id, kind:'building', layer:'buildings', name:`건물 ${b.id.split('.').at(-1)}`, position:b.position,
+      view:{position:vector(b.position).add(new THREE.Vector3(-35, 30, 45)).toArray(), target:vector(b.position).add(new THREE.Vector3(0, b.walls_m / 2, 0)).toArray(), fov:48},
+      rows:[['원천 ID · 위치·윤곽', `${b.id} · 실제`], ['벽 높이 근거', `${b.walls_m} m · ${heightBasis[b.height_status]}`],
+        ['지붕', `${roofBasis[b.roof_rule]} · ${b.roof_texture === 'vworld_z19' ? 'VWorld z19 영상 실제' : '영상 없음(회색)'}`], ['외벽·창', '절차적 추정']]};
+    pickables.push(node);
   });
-  const visible = {wind:true, transmission:true, substation:true, terrain:true, pv:true, buildings:false, sea:true};
-  for (const child of layers.get('buildings')) child.visible = false;
+  const visible = {wind:true, transmission:true, substation:true, terrain:true, pv:true, buildings:true, sea:true};
   const [longitude, latitude] = data.coordinateFrame.origin_lon_lat;
   // UTM52 meridian convergence at this small scene's origin; input wind is 16-point true-north bearing.
   const northOffset = -Math.atan(Math.tan(THREE.MathUtils.degToRad(longitude - 129)) * Math.sin(THREE.MathUtils.degToRad(latitude)));
