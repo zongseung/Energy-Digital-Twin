@@ -61,3 +61,29 @@ OMNI_KIT_ACCEPT_EULA=yes timeout 420 var/kit-runtime/bin/python -u \
 검증된 최종 실행은 `local-02`다. 입력 GLB SHA256 `2e2ee1be025368f8945be770f209813b9180dd16a62977c0225263e7e950ecf7`, manifest SHA256 `bc99f8bcd7feaceee2d43b962a3f3ca4729cda2fe24e07d896a89969185b9877`. GPU1 RTX A6000에서32.75초, 네 PNG1600×1000을 생성했다. 런타임35개1초간격샘플에서 최대 GPU사용률100%, 메모리3401MiB를 관측했다. 이 수치는 샘플 최대이며 연속 최고값/브라우저 FPS 측정이 아니다.
 
 `local-02/{evidence,verification}.json`은15시설 root·418mesh·922,830면·metre1/Y-up·원천 위치/ID·독립 rotor·USD 재열기 및 PNG decode/hash 검증을 기록한다. GPU 샘플은 `var/verification/local/gpu1-render-samples.csv`이다. `/omniverse/local-{array,overview,pv,terrain}.png`와 `/omniverse/local.usda`를 exact Nginx경로/read-only mount로 제공한다. 웹 자체는 접속 장치 WebGL이며 이 RTX 캡처는 정지 이미지다. 모델 추론의 GPU0 사용과 현재 설비형상 채택 여부는 [통합 장면 문서](estimated-twin.md)에 구분해 기록했다.
+
+## 라이브·과거 재생·시설 선택
+
+옵션을 주지 않은 기본 실행은 이전과 같다. evidence 키 순서·캡처 이름과 `/World/Observations` 속성 집합(`snapshotStatus`·`stateVersion` 없음)이 `local-02`와 같음을 scratch 출력으로 확인했다. 장면·자산은 한 번만 만들고 아래 옵션은 그 뒤에 `/World/Observations` 속성만 바꾼다.
+
+- `--replay T1,T2`: 과거 시각을 URL 인코딩해 `/state?at=`로 순서대로 조회하고 `snapshotStatus=history_replay`로 적용한다. `stateVersion`은 지운다. 적용 직후 USD 속성을 다시 읽어 API JSON과 다르면 실패한다. `replay-NN.png`를 남기며 현재 계측으로 표시하지 않는다.
+- `--live SECONDS`: Kit 이벤트 루프 안에서 `omni.kit.pip_archive`에 번들된 `websockets` 12.0으로 `/api/v1/jeju/ws`를 구독한다. `EDT_WS_URL`로 주소를 바꿀 수 있다. snapshot을 받으면 값·`stateVersion`·`snapshotStatus=live`를 쓰고, 새 `(state_version, observed_at)`에서만 `live-NNN.png`를 캡처한다. status envelope는 `unavailable`로 표시하고 값을 유지한다. 접속이 끊기면 `disconnected`로 표시하되 마지막 `observedAt`·값·`stateVersion`은 유지하고, 5초 뒤 다시 접속한다. Kit 제한 시간은 `240 + SECONDS`초다.
+- `--select FACILITY_ID`: `facilityId`가 정확히 일치하는 시설 root prim이 하나일 때만 Kit selection에 넣는다. evidence `selected_facility`에는 개별 출력 `null`과 `unavailable_null`을 기록한다.
+
+```bash
+OMNI_KIT_ACCEPT_EULA=yes timeout 600 var/kit-runtime/bin/python -u \
+  renderers/omniverse/twin.py \
+  --asset var/rendering/local/scene.glb \
+  --manifest var/rendering/local/manifest.json \
+  --views array,overview,pv,terrain --gpu 1 \
+  --live 420 --select hub:power_plant:5722 \
+  --output var/rendering/omniverse/live-02
+```
+
+evidence `applied[]`는 적용한 순서대로 `{mode, status, state_version, observed_at, usd(다시 읽은 속성), capture}`를 남기고, `final_observation`은 종료 시점의 속성이다. 세 실행 모두 현재 `var/rendering/local/` 입력(GLB SHA256 `5c243005…`, manifest `8a3f2ec9…`)을 썼다. Kit 로그에서 GPU1 Active를 확인했고, 1초 간격 `nvidia-smi` 샘플은 각 출력의 `gpu-samples.csv`에 있다.
+
+- `live-01` 과거 재생 결과. `--replay 2026-09-28T00:05:00Z,2026-09-29T12:30:00+09:00`로 실행했고, 두 시각 모두 같은 폴더의 `/timeline` 응답에 있다. 00:05Z는 수요763/공급1380/풍력41.9512/태양광37.0984/재생합계91.1461 MW였다. `+09:00` 요청은 03:30Z(862/1623/24.8968/372.072/408.522)로 돌아왔다. Kit 안의 read-back 비교를 통과했고, 실행 뒤 API를 다시 조회한 값도 evidence의 USD 값과 같았다. 41.1초, GPU1 최대 100%·3401MiB였다.
+- `live-02` 라이브 결과. `--live 420 --select hub:power_plant:5722`로 실행했고 선택 prim은 `/World/T5722`다. snapshot 세 개를 적용했다. v145는 01:40Z(`source_delayed`)였다. v146은 값·플래그가 같고 `sent_at`만 4초 늦은 재발행이며(T4에서 다루는 중복 전송), 새 버전이라 캡처됐다. v147은 01:50Z(수요742/공급1563 MW)였다. 결과 PNG는 3장이고 457.3초 걸렸다. GPU1 샘플 444개 중 최대 100%·3787MiB, 평균 78%였고 GPU0은 최대 1%였다.
+- `live-03` 단절 결과. 브릿지·API는 건드리지 않고 scratch TCP 프록시(`127.0.0.1:59998`→8090, `flaky_proxy.py`, `proxy.log`)를 `EDT_WS_URL`로 거쳤다. 프록시는 100초 뒤 연결을 끊고 20초간 포트를 닫았다. v148(01:50Z)을 적용·캡처한 뒤 `ConnectionClosedError` 1회와 `ConnectionRefusedError` 3회를 `disconnected`로 기록했다. 모든 기록에서 USD `observedAt` 01:50Z·`stateVersion` 148·값이 유지됐고 캡처는 없었다. 다시 접속한 뒤 같은 v148을 받아 `live`로 돌아왔으며 새 캡처는 만들지 않았다. 132.9초 걸렸다.
+
+한계는 다음과 같다. headless Kit에는 omni.ui HUD가 없어 PNG에 글자가 없다. 관측값은 렌더 형상에 반영되지 않으므로 live PNG는 같은 장면이고 RTX 노이즈 때문에 hash만 다르다. 값과 PNG의 짝은 evidence가 증명한다. 화면 스트리밍이 아니라 새 버전마다 찍는 정지 PNG다. replay/live 값은 Kit 메모리 stage와 evidence read-back에만 있고, `estimated-scene.usda`에는 시작 시 스냅샷이 남는다. `live`는 WS 수신 상태를 뜻하며 관측 시각은 수신보다 약 15분 늦다(`source_delayed`). 5분 주기라 420초 동안 새 관측은 01:40Z→01:50Z 한 번이었다. 단절은 프록시로 흉내 낸 것이며 실제 브릿지·API 장애는 재현하지 않았다. `nvidia-smi` 샘플은 장치 전체 값이라 동시에 돌던 다른 GPU 작업과 구분하지 못한다. 라이브 중에는 viewport가 계속 렌더해 GPU1을 점유한다.

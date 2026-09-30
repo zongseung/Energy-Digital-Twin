@@ -4,11 +4,78 @@ import asyncio
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import struct
 import time
 import traceback
+from urllib.parse import quote
 from urllib.request import urlopen
+
+API = 'http://127.0.0.1:8090/api/v1/jeju'
+REGIONAL_MW = ('demand_mw', 'supply_capacity_mw', 'wind_mw', 'solar_mw', 'renewable_total_mw')
+
+
+def apply_state(observation, state, status, version=None):
+    """Write one regional snapshot; empty state keeps the last observation and only records status."""
+    from pxr import Sdf
+    if state:
+        observation.CreateAttribute('snapshotJson', Sdf.ValueTypeNames.String).Set(json.dumps(state, ensure_ascii=False))
+        observation.CreateAttribute('source', Sdf.ValueTypeNames.String).Set(str(state.get('source', 'unavailable')))
+        observation.CreateAttribute('qualityFlags', Sdf.ValueTypeNames.StringArray).Set(state.get('quality_flags', []))
+        observation.CreateAttribute('observedAt', Sdf.ValueTypeNames.String).Set(state['observed_at'])
+        for key in REGIONAL_MW:
+            value = state.get(key)
+            if isinstance(value, (int, float)) and math.isfinite(value):
+                observation.CreateAttribute(key, Sdf.ValueTypeNames.Double).Set(value)
+            else:
+                observation.RemoveProperty(key)
+        if version is None:
+            observation.RemoveProperty('stateVersion')
+        else:
+            observation.CreateAttribute('stateVersion', Sdf.ValueTypeNames.Int64).Set(version)
+    if status:
+        observation.CreateAttribute('snapshotStatus', Sdf.ValueTypeNames.String).Set(status)
+
+
+def read_observation(observation):
+    return json.loads(json.dumps({attr.GetName(): attr.Get() for attr in observation.GetAuthoredAttributes()
+                                  if attr.GetName() != 'snapshotJson'}, default=list))
+
+
+async def follow(observation, seconds, capture):
+    """Apply WS snapshots until the deadline; a new (state_version, observed_at) gets one capture."""
+    try:
+        import websockets  # bundled by omni.kit.pip_archive 12.0
+    except ImportError as error:
+        raise RuntimeError('--live needs websockets from omni.kit.pip_archive inside Kit') from error
+    deadline, applied, last = time.monotonic() + seconds, [], None
+    while time.monotonic() < deadline:
+        try:
+            async with websockets.connect(os.environ.get('EDT_WS_URL', 'ws://127.0.0.1:8090/api/v1/jeju/ws'),
+                                          open_timeout=10, max_size=64 * 1024) as ws:
+                while True:
+                    try:
+                        envelope = json.loads(await asyncio.wait_for(ws.recv(), timeout=max(deadline - time.monotonic(), 0)))
+                    except asyncio.TimeoutError:
+                        return applied
+                    live = envelope.get('type') == 'snapshot' and envelope.get('data')
+                    status = 'live' if live else 'unavailable'
+                    # status envelopes carry the retained snapshot; keep USD values, only mark status
+                    apply_state(observation, envelope['data'] if live else None, status, envelope.get('state_version'))
+                    key = (envelope.get('state_version'), envelope.get('observed_at'))
+                    applied.append({'mode': 'live', 'status': status, 'state_version': key[0], 'observed_at': key[1],
+                                    'sent_at': envelope.get('sent_at'), 'quality_flags': envelope.get('quality_flags'),
+                                    'usd': read_observation(observation),
+                                    'capture': await capture(f'live-{len(applied) + 1:03d}') if live and key != last else None})
+                    last = key if live else last
+        except (asyncio.TimeoutError, OSError, websockets.WebSocketException, json.JSONDecodeError) as error:
+            apply_state(observation, None, 'disconnected')
+            applied.append({'mode': 'live', 'status': 'disconnected', 'state_version': None, 'observed_at': None,
+                            'error_type': type(error).__name__, 'at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                            'usd': read_observation(observation), 'capture': None})
+            await asyncio.sleep(5)  # ponytail: fixed 5 s reconnect, exponential backoff if the API starts returning 429
+    return applied
 
 
 def digest(path):
@@ -86,6 +153,9 @@ def main():
     parser.add_argument('--gpu', type=int, default=1)
     parser.add_argument('--views', help='Comma-separated manifest cameras, at most five; default preserves close/array turbine views')
     parser.add_argument('--convert-only', action='store_true', help='Import smoke test, no Jeju/facility claims')
+    parser.add_argument('--replay', help='Comma-separated past RFC3339 times applied in order from /state?at= (history, not current)')
+    parser.add_argument('--live', type=float, default=0, help='Follow the API WebSocket for this many seconds (EDT_WS_URL overrides)')
+    parser.add_argument('--select', help='Select the facility root prim whose facilityId matches exactly')
     args = parser.parse_args()
     args.asset = args.asset.resolve(strict=True)
     args.output = args.output.resolve()
@@ -178,19 +248,12 @@ def main():
         observation = UsdGeom.Xform.Define(stage, '/World/Observations').GetPrim()
         observation.CreateAttribute('scope', Sdf.ValueTypeNames.String).Set('region_only_not_individual_facility_output')
         try:
-            with urlopen('http://127.0.0.1:8090/api/v1/jeju/state', timeout=10) as response:
+            with urlopen(f'{API}/state', timeout=10) as response:
                 state = json.load(response)
-            observation.CreateAttribute('snapshotJson', Sdf.ValueTypeNames.String).Set(json.dumps(state, ensure_ascii=False))
-            observation.CreateAttribute('source', Sdf.ValueTypeNames.String).Set(str(state.get('source', 'unavailable')))
-            observation.CreateAttribute('qualityFlags', Sdf.ValueTypeNames.StringArray).Set(state.get('quality_flags', []))
-            observation.CreateAttribute('observedAt', Sdf.ValueTypeNames.String).Set(state['observed_at'])
-            for key in ('demand_mw', 'supply_capacity_mw', 'wind_mw', 'solar_mw', 'renewable_total_mw'):
-                value = state.get(key)
-                if isinstance(value, (int, float)) and math.isfinite(value):
-                    observation.CreateAttribute(key, Sdf.ValueTypeNames.Double).Set(value)
+            apply_state(observation, state, None)
         except Exception as error:
             state = {'status': 'snapshot_unavailable', 'error_type': type(error).__name__}
-            observation.CreateAttribute('snapshotStatus', Sdf.ValueTypeNames.String).Set('unavailable')
+            apply_state(observation, None, 'unavailable')
         UsdLux.DomeLight.Define(stage, '/World/Sky').CreateIntensityAttr(250)
         sun = UsdLux.DistantLight.Define(stage, '/World/Sun')
         sun.CreateIntensityAttr(1800)
@@ -240,12 +303,12 @@ def main():
         if viewport is None:
             raise RuntimeError('Kit has no RTX viewport')
         viewport.resolution = (1600, 1000)
-        images = {}
-        for name, *_ in cameras:
+
+        async def shoot(name, stem):
             viewport.camera_path = f'/World/Camera{name}'
             for _ in range(180):
                 await omni.kit.app.get_app().next_update_async()
-            image = args.output / f'{name.lower()}.png'
+            image = args.output / f'{stem}.png'
             capture = capture_viewport_to_file(viewport, str(image))
             await capture.wait_for_result(completion_frames=60)
             while not image.is_file() or image.stat().st_size < 1000:
@@ -253,20 +316,60 @@ def main():
             header = image.read_bytes()[:24]
             if header[:8] != b'\x89PNG\r\n\x1a\n' or struct.unpack('>II', header[16:24]) != (1600, 1000):
                 raise ValueError('Capture must be a 1600x1000 PNG')
-            images[name.lower()] = {'path': str(image), 'sha256': digest(image), 'resolution': [1600, 1000]}
-        return {'status': 'estimated_geometry_real_source_positions', 'input_glb': source,
-                'converted_usd': before, 'exported_usd': validated,
-                'facility_ids': [prim.GetAttribute('facilityId').Get() for prim in roots],
-                'assumptions': manifest, 'regional_observation': state, 'individual_actual_output': None,
-                'usd_sha256': digest(scene_path), 'captures': images}
+            return {'path': str(image), 'sha256': digest(image), 'resolution': [1600, 1000]}
+
+        images = {}
+        for name, *_ in cameras:
+            images[name.lower()] = await shoot(name, name.lower())
+        evidence = {'status': 'estimated_geometry_real_source_positions', 'input_glb': source,
+                    'converted_usd': before, 'exported_usd': validated,
+                    'facility_ids': [prim.GetAttribute('facilityId').Get() for prim in roots],
+                    'assumptions': manifest, 'regional_observation': state, 'individual_actual_output': None,
+                    'usd_sha256': digest(scene_path), 'captures': images}
+        if args.select:
+            matches = [prim for prim in roots if prim.GetAttribute('facilityId').Get() == args.select]
+            if len(matches) != 1:
+                raise ValueError(f'Expected exactly one facility root with facilityId {args.select}, found {len(matches)}')
+            path = str(matches[0].GetPath())
+            context.get_selection().set_selected_prim_paths([path], True)
+            if list(context.get_selection().get_selected_prim_paths()) != [path]:
+                raise RuntimeError('Kit selection did not take the facility root')
+            evidence['selected_facility'] = {'facility_id': args.select, 'prim_path': path,
+                                             'individual_actual_output': None, 'status': 'unavailable_null'}
+        if not (args.replay or args.live):
+            return evidence
+        # PNGs carry no HUD text (headless, no omni.ui); evidence pairs each capture with the applied snapshot.
+        # ponytail: replay/live values live in the Kit stage and evidence read-backs only; estimated-scene.usda keeps
+        # the start-up snapshot. Export per applied version if a downstream USD consumer needs the file.
+        applied = evidence['applied'] = []
+        for index, at in enumerate(args.replay.split(',') if args.replay else [], 1):
+            with urlopen(f'{API}/state?at={quote(at.strip(), safe="")}', timeout=10) as response:
+                past = json.load(response)
+            apply_state(observation, past, 'history_replay')
+            usd = read_observation(observation)
+            expected = {'observedAt': past['observed_at'], 'source': past['source'],
+                        'qualityFlags': past['quality_flags'], 'snapshotStatus': 'history_replay',
+                        **{key: past.get(key) if isinstance(past.get(key), (int, float)) and math.isfinite(past[key]) else None
+                           for key in REGIONAL_MW}}
+            mismatch = {key: [usd.get(key), value] for key, value in expected.items() if usd.get(key) != value}
+            if mismatch or 'stateVersion' in usd:
+                raise ValueError(f'Replayed USD attributes differ from API: {mismatch}')
+            applied.append({'mode': 'replay', 'status': 'history_replay', 'requested_at': at.strip(),
+                            'state_version': None, 'observed_at': past['observed_at'], 'api': past, 'usd': usd,
+                            'capture': await shoot(cameras[-1][0], f'replay-{index:02d}')})
+        if args.live:
+            applied += await follow(observation, args.live, lambda stem: shoot(cameras[-1][0], stem))
+        evidence['final_observation'] = read_observation(observation)
+        return evidence
 
     task = asyncio.ensure_future(execute())
+    limit = 240 + args.live
     try:
-        while not task.done() and time.monotonic() - started < 240:
+        while not task.done() and time.monotonic() - started < limit:
             app.update()
         if not task.done():
             task.cancel()
-            raise TimeoutError('Native conversion/capture exceeded 240 seconds')
+            raise TimeoutError(f'Native conversion/capture exceeded {limit:g} seconds')
         evidence = task.result()
         if digest(args.asset) != asset_hash or (args.manifest and digest(args.manifest.resolve()) != manifest_hash):
             raise ValueError('Input asset/manifest changed during conversion')
