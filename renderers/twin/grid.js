@@ -100,13 +100,14 @@ export async function loadGrid() {
     const marker = new THREE.Points(new THREE.BufferGeometry().setFromPoints([vector(station.position).add(new THREE.Vector3(0, 15, 0))]), new THREE.PointsMaterial({color:colors[record.kind], size:9, sizeAttenuation:false}));
     object.add(marker); attach(record, marker); records.push(record);
   }
-  for (const layer of ['terrain', 'buildings', 'sea']) layers.set(layer, []);
+  for (const layer of ['terrain', 'buildings', 'sea', 'roads', 'vegetation']) layers.set(layer, []);
   const buildings = new Map((data.buildings?.records || []).map((b) => [b.node, b]));
   const heightBasis = {provider:'원천 높이', floors_estimated:'층수×3 m 추정', default_estimated:'속성 없음 · 1층 3.5 m 추정'};
   const roofBasis = {gable_house:'박공 20° 추정', gable_shed:'박공 10° 추정', flat_parapet:'평지붕·난간 추정'};
   gltf.scene.traverse((node) => {
     if (!node.isMesh) return;
-    const layer = /^(building|landmark)_/.test(node.name) ? 'buildings' : node.name === 'ocean_surface' ? 'sea' : /terrain|shore|landcover|road/.test(node.name) ? 'terrain' : null;
+    if (node.material?.map) node.material.map.anisotropy = 8; // sharper low-angle imagery; WebGL clamps to the device maximum
+    const layer = node.name.startsWith('street_') ? 'roads' : node.name.startsWith('vegetation_') ? 'vegetation' : /^(building|landmark)_/.test(node.name) ? 'buildings' : node.name.startsWith('ocean_surface') ? 'sea' : /terrain|shore|landcover|road/.test(node.name) ? 'terrain' : null;
     if (layer) layers.get(layer).push(node);
     const b = layer === 'buildings' && buildings.get(node.parent?.name);
     if (!b) return;
@@ -117,7 +118,7 @@ export async function loadGrid() {
         ['지붕', `${roofBasis[b.roof_rule]} · ${b.roof_texture === 'vworld_z19' ? 'VWorld z19 영상 실제' : '영상 없음(회색)'}`], ['외벽·창', '절차적 추정']]};
     pickables.push(node);
   });
-  const visible = {wind:true, transmission:true, substation:true, terrain:true, pv:true, buildings:true, sea:true};
+  const visible = {wind:true, transmission:true, substation:true, terrain:true, pv:true, buildings:true, sea:true, roads:true, vegetation:true};
   const [longitude, latitude] = data.coordinateFrame.origin_lon_lat;
   // UTM52 meridian convergence at this small scene's origin; input wind is 16-point true-north bearing.
   const northOffset = -Math.atan(Math.tan(THREE.MathUtils.degToRad(longitude - 129)) * Math.sin(THREE.MathUtils.degToRad(latitude)));

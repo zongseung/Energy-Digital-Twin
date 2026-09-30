@@ -97,6 +97,8 @@ Rust HTTP/WS는 실제 **제주 집계**만 표시한다. 개별 시설 발전�
 | GPU 유휴, 최종 페이지 | ANGLE Vulkan · NVIDIA RTX A6000 | 59.5 / 59.6 | 통과(60 Hz 상한) |
 | Kit 라이브와 GPU1 공유 | ANGLE Vulkan · NVIDIA RTX A6000 | 59.9 / 59.5 | 통과 |
 | 소프트웨어 | ANGLE Vulkan · SwiftShader | 1.4 / 3.4 | **미달** |
+| 도로·식생·z17 추가 후 1차 | ANGLE Vulkan · NVIDIA RTX A6000 | 30.1 / 52.7 | 통과(경계) |
+| 도로·식생·z17 추가 후 2차 | ANGLE Vulkan · NVIDIA RTX A6000 | 59.5 / 53.4 | 통과 · 약 1% 프레임 80–330 ms 끊김 |
 
 서버 headless 측정이며 사용자 기기 수치가 아니다. 웹 장면은 접속 기기의 GPU로 그려지므로 GPU 가속이 없는 기기에서는 소프트웨어 행처럼 느려질 수 있다. 결과: `var/verification/fps/result-*.json`.
 
@@ -110,6 +112,9 @@ uv run renderers/twin/build_grid.py
 python3 renderers/twin/prepare_imagery.py --self-test
 python3 renderers/twin/prepare_imagery.py
 python3 renderers/twin/prepare_imagery.py --roofs   # z19 지붕 atlas → var/rendering/roofs/
+python3 renderers/twin/prepare_imagery.py --terrain-detail   # 신창 z17 지형 영상 → var/rendering/imagery-detail/
+uv run renderers/twin/roads.py --self-test      # --collect: VWorld LT_L_N3A0020000 → var/rendering/roads/ngii.json
+uv run renderers/twin/vegetation.py --self-test
 uv run renderers/twin/build_local.py
 uv run renderers/twin/build_local.py --self-test
 docker compose --profile preview up -d preview
@@ -129,3 +134,10 @@ GPU 입력15시설 root(풍력10/PV3/변전소1/선로1)는 USD418메시/922,830
 `renderers/twin/landmarks.py`가 신창 해안 흰 등대(126.169461, 33.345528)와 싱계물공원 L자 기와 정자·육각정을 같은 `scene.glb`의 `landmark_*` 노드로 넣는다. 위치는 VWorld z19 영상에서 직접 찾은 점(근거: `var/rendering/landmarks/evidence/`)이고, 등대 위치는 사진 09 속 탐라 풍력 10기 방위로 촬영점을 역산해 교차 확인했다. 치수는 Commons 사진 01·09의 사람(1.7 m 가정) 비례로 추정했다(±10%, 등대 14.2 m). 사진은 형태 참고로만 쓰고 텍스처로 쓰지 않았으며 CREDITS에 출처를 적었다. 지붕 곡선·기와·난간 세부는 평면 근사다. 건물 레이어에 포함되며 manifest 카메라 `lighthouse`·`pavilion`이 근접 시점이다.
 
 GPU1 Kit RTX 재캡처: `var/rendering/omniverse/buildings-01/`(buildings·lighthouse·pavilion·overview, 44초). 건물·랜드마크 아래 지형 영상은 기존 약 4 m/px라 근접 시 흐리다.
+
+## 도로·식생·지형 영상 (2026-09-30)
+
+- **도로** (`renderers/twin/roads.py`): VWorld 2D API의 국토지리정보원 도로중심선 `LT_L_N3A0020000` 3,208구간(91.9 km)을 원천 폭 `rvwd`(1.5–33.7 m)로 버퍼해 표시 지형 +0.3 m에 얹는다. 포장은 `pvqt`(연속수치지형도 설명서 5.1.1) 비포장 654구간을 갈색으로, 포장은 폭 6 m 이상 아스팔트·미만 콘크리트로 추정한다. 중앙 황색선은 2차선 이상 또는 6 m 이상에만 있다. 250,797 삼각형이며, 60 m 지형 면 사이에서 최대 3.6 cm 잠기는 점 4곳이 남는다. `rvwd`는 넓은 도로에서 보도를 포함할 수 있고, 교량은 지형 위에 놓인다.
+- **식생** (`renderers/twin/vegetation.py`): 환경부 토지피복 중분류(2023) 구역 안에 침엽수 3,552·활엽 573·감귤 8,107그루와 비닐하우스 148동을 고정 seed로 배치했다(293,736 삼각형, 예산 300k로 밀도 0.95배). 구역은 실제이고 개별 나무 위치·크기·하우스 배열은 추정이다. 건물 윤곽+3 m는 비운다.
+- **지형 영상**: 신창 AOI의 VWorld z17(약 1 m/px, 3584×4096) 모자이크를 그 안의 육지·연안 바다 삼각형 8,970개에 입혔다(`*_detail` 메시). 높이와 삼각형은 바뀌지 않는다. 멀리 낮은 각도는 anisotropy 8로 보정한다.
+- 레이어 `도로`·`식생`을 켜고 끌 수 있다. `scene.glb`는 37.8 MB에서 57.3 MB가 됐다. 브라우저 375/1280 QA, GPU1 Kit 캡처(`var/rendering/omniverse/roads-veg-01/`)를 통과했다.

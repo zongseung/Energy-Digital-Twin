@@ -7,7 +7,7 @@ import {shouldApply, kstDay} from '/twin/playback.mjs';
 
 const el = (id) => document.getElementById(id);
 const metricKeys = ['demand_mw', 'supply_capacity_mw', 'wind_mw', 'solar_mw', 'renewable_total_mw'];
-const layers = ['wind', 'transmission', 'substation', 'pv', 'terrain', 'buildings', 'sea'];
+const layers = ['wind', 'transmission', 'substation', 'pv', 'terrain', 'buildings', 'sea', 'roads', 'vegetation'];
 const sceneControls = ['inspect', 'overview', 'wind-view', 'terrain-relief', 'terrain-view', 'pv-view', 'buildings-view', 'sea-view', 'rotate', 'zoom-in', 'zoom-out', 'rotor-demo'];
 let renderer, scene, camera, controls, selected, grid;
 let demoFrame = 0, previousTime = 0, socket, reconnectTimer, contextLost = false;

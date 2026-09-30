@@ -32,6 +32,8 @@ from trimesh.visual.texture import TextureVisuals
 
 from build import normals, sha, translation
 from landmarks import add_landmarks
+from roads import add_roads
+from vegetation import add_vegetation
 from photo_assets import load_placements, place_asset
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -106,7 +108,7 @@ def surface_height(scene: trimesh.Scene):
     """Return height(x, z) of the displayed terrain/sea triangles (highest where they overlap)."""
     tris = []
     for name, mesh in scene.geometry.items():
-        if name == "ocean_surface" or name.startswith("terrain_landcover_"):
+        if name.startswith(("ocean_surface", "terrain_landcover_")):
             transform = scene.graph[scene.graph.geometry_nodes[name][0]][0]
             tris.append(trimesh.transform_points(mesh.vertices, transform)[mesh.faces])
     tris = np.concatenate(tris)
@@ -150,7 +152,7 @@ def apply_imagery(scene: trimesh.Scene, image_path: Path, metadata: dict, frame:
                   detail_path: Path | None = None, detail_metadata: dict | None = None) -> int:
     """Texture the existing DSM vertices with their actual map positions.
 
-    Land triangles wholly inside the detail mosaic and clear of its failed tiles move, unchanged, to
+    Land and sea triangles wholly inside the detail mosaic and clear of its failed tiles move, unchanged, to
     `<name>_detail` meshes with the detail texture. Returns the number of moved triangles.
     """
     assert metadata["crs"] == "EPSG:3857"
@@ -172,7 +174,7 @@ def apply_imagery(scene: trimesh.Scene, image_path: Path, metadata: dict, frame:
         mesh.visual = TextureVisuals(uv=uv, material=material)
         normals(mesh)
         scene.geometry[name] = mesh
-        if not detail_path or name == "ocean_surface":
+        if not detail_path:
             continue
         w, s, e, n = detail_metadata["bounds"]
         detail_uv = np.column_stack(((mx - w) / (e - w), (my - s) / (n - s)))
@@ -486,7 +488,7 @@ def local_assumptions(grid: dict, wind: dict) -> tuple[dict, dict]:
 def terrain_focus(scene: trimesh.Scene, frame: dict) -> tuple[list[float], list[float]]:
     """Select the highest source DSM vertex within the visible western hill patch."""
     points = np.vstack([mesh.vertices for name, mesh in scene.geometry.items()
-                        if name == "ocean_surface" or name.startswith("terrain_landcover_")])
+                        if name.startswith(("ocean_surface", "terrain_landcover_"))])
     origin = frame["origin_easting_northing"]
     lon, lat = project_crs(frame["horizontal_crs"], "EPSG:4326",
                            points[:, 0] + origin[0], origin[1] - points[:, 2])
@@ -547,9 +549,12 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
     buildings, building_camera = add_buildings(scene, grid["coordinateFrame"])
     landmarks = add_landmarks(scene, grid["coordinateFrame"])
     landmark_by_id = {r["id"]: r for r in landmarks["records"]}
+    height_at = surface_height(scene)
+    roads = add_roads(scene, grid["coordinateFrame"], height_at)
+    vegetation = add_vegetation(scene, grid["coordinateFrame"], height_at)
     grid_assumptions, wind_assumptions = local_assumptions(grid, wind)
     terrain = {**grid["terrain"], "materials": "Georeferenced VWorld Satellite JPEG mapped to the unchanged DSM and WBM ocean mesh via EPSG:3857 UV coordinates; "
-               "land triangles inside the Sinchang z17 mosaic use it (~1 m/px) as terrain_landcover_*_detail meshes"}
+               "land and coastal sea triangles inside the Sinchang z17 mosaic use it (~1 m/px) as *_detail meshes"}
     terrain.pop("palette", None)
     terrain["vertical_exaggeration"] = 1
     peak, peak_lon_lat = terrain_focus(grid_scene, grid["coordinateFrame"])
@@ -580,7 +585,7 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
     manifest = {
         "schema_version": 1, "created_at": datetime.now(timezone.utc).isoformat(), "units": "m",
         "coordinateFrame": grid["coordinateFrame"], "facilities": facilities, "routes": routes,
-        "coast": coast, "terrain": terrain, "buildings": buildings, "landmarks": landmarks, "sea": sea, "physical_line": grid["physical_line"],
+        "coast": coast, "terrain": terrain, "buildings": buildings, "landmarks": landmarks, "roads": roads, "vegetation": vegetation, "sea": sea, "physical_line": grid["physical_line"],
         "cameras": cameras, "assetassumptions": grid_assumptions,
         "wind_assetassumptions": wind_assumptions,
         "source_assetassumptions": {"grid": grid["assetassumptions"], "wind": wind["assetassumptions"]},
@@ -594,7 +599,7 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
                            "metadata_path": source_path(detail_dir / "manifest.json"),
                            "metadata_sha256": sha(detail_dir / "manifest.json"), **detail_metadata,
                            "triangle_count": moved, "material": "georeferenced_imagery_z17",
-                           "policy": "Land triangles wholly inside the tile-aligned z17 mosaic and not touching a failed z17 tile move unchanged to terrain_landcover_<class>_detail meshes; all others and ocean_surface keep the z15 mosaic."},
+                           "policy": "Land and sea triangles wholly inside the tile-aligned z17 mosaic and not touching a failed z17 tile move unchanged to <mesh>_detail meshes (terrain_landcover_<class>_detail, ocean_surface_detail); all others keep the z15 mosaic."},
         "audit": {"electrical_topology_inferred": False, "terrain_count": 1,
                   "display_route_count": sum(bool(r["paths"]) for r in routes)},
         "files": [{"path": "scene.glb", "bytes": glb.stat().st_size, "sha256": sha(glb)}],
@@ -607,7 +612,7 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
                f"{imagery_metadata['source']} — {imagery_metadata['attribution']}\n" +
                f"{imagery_metadata['documentation']}\n{imagery_metadata['notice']}\n" +
                "Changes: original georeferenced mosaic restored to both existing land DSM and unchanged WBM sea geometry in EPSG:3857 UV coordinates.\n" +
-               f"Sinchang site terrain: {detail_metadata['source']} z{detail_metadata['zoom']} mosaic (~1 m/px, same provider and terms) on land triangles inside it; "
+               f"Sinchang site terrain: {detail_metadata['source']} z{detail_metadata['zoom']} mosaic (~1 m/px, same provider and terms) on land and sea triangles inside it; "
                "triangles touching failed tiles keep the base mosaic.\n" +
                "\n--- Building source ---\nVWorld LT_C_BLDGINFO — https://api.vworld.kr/req/data\n" +
                "VWorld provider terms; source attribution required. Prepared Sinchang footprints (all 2661); provider heights where positive, otherwise floors x 3 m or one 3.5 m storey (recorded per building).\n" +
@@ -615,7 +620,11 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
                "\n--- Landmark references ---\n" +
                "".join(f"{s['title']} — {s['author']}, Wikimedia Commons ({s['source_page']}), {s['license']}. Used only as shape/proportion reference; not a texture.\n"
                        for s in landmarks["sources"] if s["kind"] == "shape_proportion_photo") +
-               "Landmark positions from VWorld Satellite z19 imagery; geometry is photo-referenced code modelling (estimated, not surveyed).\n")
+               "Landmark positions from VWorld Satellite z19 imagery; geometry is photo-referenced code modelling (estimated, not surveyed).\n" +
+               "\n--- Roads and vegetation ---\n" +
+               "".join(f"{s.get('attribution') or s.get('source')} — {s.get('source', '')} ({s.get('license') or 'provider terms apply'})\n"
+                       for s in roads["sources"] + vegetation["sources"] if s.get("attribution") or s.get("source")) +
+               "Road ribbons: path from source, width/pavement per record status (source or estimated). Vegetation: zones from 2023 landcover; individual trees and greenhouses are procedural estimates.\n")
     for facility in facilities:
         if "photo_asset" in facility:
             photo = facility["photo_asset"]
@@ -658,10 +667,10 @@ def verify(output: Path) -> dict:
         assert len(path) >= 2 and all(inside(p, box) for p in path)
     assert len(manifest["coast"]) > 0
     reopened = trimesh.load(output / "scene.glb", force="scene")
-    assert len([n for n in reopened.graph.nodes if n.startswith("terrain_landcover_") or n == "ocean_surface"]) > 0
+    assert len([n for n in reopened.graph.nodes if n.startswith(("terrain_landcover_", "ocean_surface"))]) > 0
     assert not any(n in reopened.graph.nodes for n in ("shore_basalt", "terrain_land"))
     terrain_meshes = {name: m for name, m in reopened.geometry.items()
-                      if name == "ocean_surface" or name.startswith("terrain_landcover_")}
+                      if name.startswith(("ocean_surface", "terrain_landcover_"))}
     assert terrain_meshes and all(isinstance(m.visual, TextureVisuals) and len(m.visual.uv) == len(m.vertices)
                                   for m in terrain_meshes.values())
     assert all(np.isfinite(m.vertices).all() and np.isfinite(m.face_normals).all() and np.isfinite(m.vertex_normals).all() and
@@ -735,9 +744,9 @@ def verify(output: Path) -> dict:
         mx, my = (a[probe.geometry[name].faces] for a in mercator(probe.geometry[name].vertices, manifest["coordinateFrame"]))
         assert not shapely.intersects(tile_box(failed), shapely.box(mx.min(1), my.min(1), mx.max(1), my.max(1))).any()
     actual_heights = np.concatenate([m.vertices[:, 1] for name, m in reopened.geometry.items()
-                                     if name == "ocean_surface" or name.startswith("terrain_landcover_")])
+                                     if name.startswith(("ocean_surface", "terrain_landcover_"))])
     source_heights = np.concatenate([m.vertices[:, 1] for name, m in originals["grid"].geometry.items()
-                                     if name == "ocean_surface" or name.startswith("terrain_landcover_")])
+                                     if name.startswith(("ocean_surface", "terrain_landcover_"))])
     assert np.isclose(actual_heights.min(), source_heights.min(), atol=.002)
     assert np.isclose(actual_heights.max(), source_heights.max(), atol=.002)
     assert actual_heights.max() - actual_heights.min() > 700 and len(np.unique(np.round(actual_heights, 1))) > 100
