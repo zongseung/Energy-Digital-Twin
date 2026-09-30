@@ -1,0 +1,46 @@
+{
+  "terrain_bbox_lon_lat": [126.145, 33.31, 126.40, 33.435],
+  "terrain_sample_stride": 2,
+  "coast_simplify_tolerance_m": 25,
+  "representative_source_id": "hub:power_line:3596",
+  "hvdc_source_ids": [3631, 3632, 3633, 4156, 4157, 4158],
+  "pv_example": {
+    "sample_count": 3,
+    "rows": 4,
+    "columns": 8,
+    "panel_width_length_m": [1.1, 2.1],
+    "tilt_deg": 25,
+    "column_spacing_m": 1.22,
+    "row_spacing_m": 3.3,
+    "center_height_m": 2.0
+  },
+  "estimated": {
+    "pylon_height_m": 32,
+    "pylon_base_width_m": 7.6,
+    "pylon_top_width_m": 1.2,
+    "crossarm_half_width_m": 5.6,
+    "crossarm_heights_m": [20, 25, 30],
+    "insulator_length_m": 1.8,
+    "max_span_m": 300,
+    "sag_at_max_span_m": 5.5,
+    "conductor_radius_m": 0.022,
+    "guard_wire_radius_m": 0.014,
+    "minimum_clearance_m": 8,
+    "wire_sample_spacing_m": 5,
+    "substation_pad_width_depth_m": [34, 26],
+    "substation_yaw_deg": 15,
+    "route_display_elevation_m": 8
+  },
+  "claim_limits": [
+    "Source route vertices and substation horizontal coordinates are retained, but GIS lines do not establish electrical connectivity, current, load or direction of flow.",
+    "Only source line 3596 has physical line geometry. Its source vertices plus interpolated spans define estimated tower positions, not surveyed tower locations.",
+    "Lattice towers, six conductors, one guard wire, tower height, wire radius and parabolic sag are adjustable visual estimates; they are not confirmed circuit configuration or engineering clearance calculations.",
+    "Substation tanks, radiators, bushings, gantries, cabinets, footprints and orientations are generic estimated equipment, not measured layouts. Source converter/distribution classifications remain unchanged.",
+    "Copernicus is an EGM2008 surface model including vegetation and buildings; terrain is a partial crop sampled every two native pixels, not a bare-earth or local survey.",
+    "Landcover classes drive synthetic surface colours; no aerial or reference photograph pixels are copied. Sea level is zero EGM2008 and no bathymetry is claimed.",
+    "Overview route widths and vertical offsets are display styling, not measured conductor diameter, underground depth or surveyed altitude. Full mainland HVDC endpoints remain present.",
+    "No connection to Tamra wind turbines is inferred. Repeated source IDs are grouped only when type, voltage and full forward/reversed geometry match exactly.",
+    "Three PV examples use distinct source registration/geocoded coordinates nearest Hallim; multiple records sharing each coordinate are disclosed. These are not surveyed parcels or confirmed facility footprints.",
+    "Each PV example has 4 by 8 ground-mounted demonstration panels with estimated tilt, supports and inverter. Panel count is independent of source capacity; actual panel count, installation type, orientation and footprint remain unknown. Source status is a dated record, not live telemetry; solar_power is null."
+  ]
+}

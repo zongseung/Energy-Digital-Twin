@@ -1,0 +1,9 @@
+*
+!Cargo.toml
+!Cargo.lock
+!src/
+!src/**
+!inference/
+!inference/**
+!models/
+!models/manifest.tsv

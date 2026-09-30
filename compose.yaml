@@ -1,0 +1,71 @@
+name: jeju-twin
+services:
+  preview:
+    profiles: [preview]
+    image: nginx:stable-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+    network_mode: host
+    user: "101:101"
+    entrypoint: [nginx]
+    command: [-g, "daemon off;"]
+    volumes:
+      - ./renderers/mock/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./renderers/mock:/srv/app:ro
+      - ./renderers/site:/srv/site:ro
+      - ./var/rendering/site:/srv/site-data:ro
+      - ./renderers/twin:/srv/twin:ro
+      - ./var/rendering/twin:/srv/twin-data:ro
+      - ./var/rendering/grid:/srv/grid-data:ro
+      - ./var/rendering/local:/srv/local-data:ro
+      - ./renderers/mock/node_modules/three:/srv/three:ro
+      - ./var/rendering/mock:/srv/data:ro
+      - ./var/rendering/omniverse/verified-v2:/srv/omniverse:ro
+      - ./var/rendering/omniverse/twin-03:/srv/twin-rtx:ro
+      - ./var/rendering/omniverse/grid-01:/srv/grid-rtx:ro
+      - ./var/rendering/omniverse/local-02:/srv/local-rtx:ro
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+  api:
+    build: .
+    network_mode: host
+    environment:
+      BIND_ADDR: ${BIND_ADDR:-127.0.0.1:8090}
+      BRIDGE_BASE_URL: ${BRIDGE_BASE_URL:-}
+      REDIS_URL: ${REDIS_URL:-redis://127.0.0.1:6380/0}
+      RUST_LOG: ${RUST_LOG:-jeju_twin=info}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://127.0.0.1:8080,http://127.0.0.1:18080,http://localhost:18080}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      test: [CMD, jeju-twin, healthcheck]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+  redis:
+    image: redis:7.4.2-alpine
+    ports: ["127.0.0.1:6380:6379"]
+    command: [redis-server, --appendonly, "no", --save, "", --maxmemory, 256mb, --maxmemory-policy, allkeys-lru]
+    # Disposable app cache: source data remains on the bridge server.
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 30s
+      timeout: 3s
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"

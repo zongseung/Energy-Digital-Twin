@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="실제 제주 GIS와 합성 수급 데이터로 살펴보는 대화형 3D Mock 렌더링.">
+  <meta name="theme-color" content="#101114">
+  <title>제주 전력 3D · Mock 미리보기</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script type="importmap">{"imports":{"three":"/vendor/build/three.module.js","three/addons/":"/vendor/examples/jsm/"}}</script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>제주 전력 <span>3D</span></h1>
+    <span class="badge">Mock · 수급 합성 데이터</span>
+    <a class="server-link" href="/omniverse/jeju-mock.png" target="_blank" rel="noopener">서버 렌더 ↗</a>
+  </header>
+  <main class="workspace">
+    <section id="map" aria-label="제주 본섬 3D 지도">
+      <div class="map-title"><span class="eyebrow">JEJU ISLAND</span><p>지형과 전력 시설</p></div>
+      <div id="map-status" role="status">지형 불러오는 중…</div>
+      <div class="map-controls" aria-label="카메라 조작">
+        <button id="zoom-in" type="button" disabled>확대</button>
+        <button id="zoom-out" type="button" disabled>축소</button>
+        <button id="rotate" type="button" disabled>회전</button>
+        <button id="reset" type="button" disabled>전체 보기</button>
+      </div>
+      <p class="map-caption">실제 GIS · 시설은 위치 기호<br>지형 높이 ×3 연출 · 수직 기준/단위 미검증</p>
+    </section>
+    <details id="explorer" class="panel explorer" open>
+      <summary>시설·레이어 <span id="total-count">—</span></summary>
+      <div class="explorer-body">
+        <fieldset id="layers"><legend>지도 레이어</legend>
+          <label><input type="checkbox" value="substation" checked><span class="dot substation"></span>변전소</label>
+          <label><input type="checkbox" value="power_plant" checked><span class="dot plant"></span>발전 레코드</label>
+          <label><input type="checkbox" value="pv_facility" checked><span class="dot pv"></span>태양광</label>
+          <label><input type="checkbox" value="lines" checked><span class="dot line"></span>선로 경로</label>
+        </fieldset>
+        <label for="search" class="search-label">시설 찾기</label>
+        <input id="search" type="search" placeholder="시설 이름 또는 ID" autocomplete="off">
+        <p id="result-count" class="muted" role="status">자료 준비 중</p>
+        <ul id="facilities" aria-label="시설 목록"></ul>
+        <button id="more" type="button" hidden>더 보기</button>
+        <button id="clear" type="button" hidden>검색 초기화</button>
+      </div>
+    </details>
+    <aside class="panel inspector" aria-labelledby="selected-name">
+      <span class="eyebrow">SELECTED FACILITY</span>
+      <h2 id="selected-name">시설을 선택하세요</h2>
+      <p id="selection-guide" class="muted">지도 또는 목록에서 시설을 선택하면 원천 정보를 볼 수 있습니다.</p>
+      <dl id="selected-details"></dl>
+      <button id="focus" type="button" disabled>선택 위치로 이동</button>
+      <p class="data-note">지역 수급은 아래의 합성 값입니다. 시설별 실제 출력·선로별 전력 흐름을 나타내지 않습니다.</p>
+      <details class="source-note"><summary>자료와 표현 범위</summary>
+        <p>원천 GIS의 위치·ID를 보존합니다. 발전 레코드에는 발전소와 개별 발전기가 함께 포함됩니다.</p>
+        <p>제주 본섬 미리보기입니다. DEM은 표시용으로 줄였으며 해안선도 단순화했습니다. 시설 형상과 고도는 실측 모델이 아닙니다.</p>
+        <p>지리 자료의 원천 이용조건과 수직 기준 확인이 남아 있습니다. 사진을 텍스처로 사용하지 않습니다.</p>
+        <p id="provenance"></p>
+      </details>
+    </aside>
+  </main>
+  <footer class="timeline">
+    <div class="time-heading"><label for="time">합성 하루 <span>· 5분 간격</span></label><output id="time-value" for="time">12:00 KST</output></div>
+    <div class="time-slider"><span>00:00</span><input id="time" type="range" min="0" max="287" step="1" value="144" aria-describedby="mock-note"><span>23:55</span></div>
+    <dl class="metrics"><div><dt>수요 <span>합성 MW</span></dt><dd id="demand">—</dd></div><div><dt>풍력 <span>합성 MW</span></dt><dd id="wind">—</dd></div><div><dt>태양광 <span>합성 MW</span></dt><dd id="solar">—</dd></div></dl>
+    <p id="mock-note">미리보기용 곡선 · 관측/예측/계통 계산 결과 아님</p>
+  </footer>
+</body>
+</html>

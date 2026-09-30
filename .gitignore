@@ -1,1 +1,10 @@
 .env
+.env.*
+!.env.example
+/target/
+/.codegraph
+/var/
+/.worktrees/
+/.venv/
+__pycache__/
+/renderers/mock/node_modules/

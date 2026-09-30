@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>탐라–한림 · 실제 영상과 지형 3D</title>
+  <link rel="stylesheet" href="/site/style.css"><link rel="stylesheet" href="/twin/style.css">
+  <script type="importmap">{"imports":{"three":"/vendor/build/three.module.js","three/addons/":"/vendor/examples/jsm/"}}</script>
+  <script type="module" src="/twin/app.js"></script>
+</head>
+<body>
+  <header class="topbar"><h1>탐라–한림 <span>3D</span></h1><span class="estimate">실제 영상·고도 / 설비 외형 추정</span><a href="/omniverse/local-array.png" target="_blank" rel="noreferrer">서버 GPU 렌더 ↗</a></header>
+  <main class="workspace">
+    <section class="map-region" aria-label="제주 전력시설 3D 장면">
+      <div id="viewport"></div>
+      <div class="map-controls" aria-label="시점 조작">
+        <button id="overview" disabled>구역 전체</button><button id="wind-view" disabled>풍력·해안</button><button id="terrain-relief" disabled>고도·지형</button><button id="buildings-view" disabled>마을·영상</button><button id="sea-view" disabled>바다</button><button id="terrain-view" disabled>한림 선로</button><button id="pv-view" disabled>태양광</button><button id="inspect" disabled>선택 시설</button>
+        <button id="rotate" disabled>시점 회전</button><button id="zoom-in" disabled aria-label="3D 확대">＋</button><button id="zoom-out" disabled aria-label="3D 축소">−</button>
+      </div>
+      <p id="map-status" role="status">실제 영상·지형과 시설 불러오는 중…</p>
+      <div class="scene-caption"><strong id="scene-title">탐라–한림 통합 장면</strong><span>드래그: 회전 · 휠: 확대 · 시설 클릭: 선택</span><span id="scene-note">영상: VWorld · 고도: Copernicus DSM / 개별 시설 계측 미연결</span></div>
+    </section>
+    <aside class="sidebar" aria-label="시설 정보">
+      <p class="eyebrow">JEJU · ENERGY INFRASTRUCTURE</p>
+      <section class="wind-observation" aria-label="인근 관측소의 실제 바람">
+        <h2 id="wind-station">제주 관측 바람</h2>
+        <p id="wind-selection" class="muted note">시설별 가까운 유효 관측소 선택</p>
+        <p class="wind-values"><strong id="wind-speed">—</strong><span id="wind-direction">—</span></p>
+        <p id="wind-status" role="status">관측 불러오는 중…</p>
+        <p id="wind-time" class="muted note">관측 시각 —</p>
+        <p id="wind-nearest-note" class="muted note"></p>
+        <label class="layer-toggle"><input id="wind-follow" type="checkbox" checked disabled>시설별 관측풍향으로 방향 시연</label>
+        <p id="wind-follow-status" class="muted note">관측 대기 · 실제 터빈 방향·RPM 계측 아님</p>
+        <p class="muted note"><a href="https://www.weather.go.kr/w/observation/land/aws-obs.do" target="_blank" rel="noreferrer">기상청 제주 관측소</a> · 10분 평균 · 풍향 16방위 · 지상 관측, QC 상태 미제공</p>
+        <details class="wind-stations"><summary id="wind-station-count">제주 전체 관측소 불러오는 중</summary><p class="muted note">선택 시설에서 가까운 순 · 관측 시각 KST</p><div class="wind-table-scroll" tabindex="0" role="region" aria-label="제주 전체 관측소 바람"><table><thead><tr><th scope="col">관측소 / 거리</th><th scope="col">바람</th><th scope="col">관측</th></tr></thead><tbody id="wind-stations"></tbody></table></div></details>
+      </section>
+      <fieldset id="grid-layers"><legend>같은 장면의 표시 레이어</legend>
+        <label class="layer-toggle"><input id="layer-wind" type="checkbox" checked disabled><span class="legend wind">풍력 10기</span></label>
+        <label class="layer-toggle"><input id="layer-transmission" type="checkbox" checked disabled><span class="legend transmission">송전선·케이블</span></label>
+        <label class="layer-toggle"><input id="layer-substation" type="checkbox" checked disabled><span class="legend station">구역 내 변전소</span></label>
+        <label class="layer-toggle"><input id="layer-pv" type="checkbox" checked disabled><span class="legend pv">태양광 예시 3곳</span></label>
+        <label class="layer-toggle"><input id="layer-terrain" type="checkbox" checked disabled>실제 영상·지형</label>
+        <label class="layer-toggle"><input id="layer-buildings" type="checkbox" disabled><span id="buildings-count">단순 높이 모형 · 비교용</span></label>
+        <p class="muted note">건물은 경계·높이를 세운 단순 모형입니다. 실제 지붕·외벽 형상이 없어 기본 화면에서는 숨겼습니다.</p>
+        <label class="layer-toggle"><input id="layer-sea" type="checkbox" checked disabled>바다 · 기존 영상</label>
+      </fieldset>
+      <h2 id="selected-name">시설 선택</h2><p id="selection-status" role="status">원천 자료를 불러오는 중</p>
+      <dl id="facility-detail"></dl>
+      <div id="wind-estimate" hidden><p><strong>풍속 기반 추정 가능 출력</strong> · <span id="wind-estimate-power">—</span> · 시각화 회전 <span id="wind-estimate-rpm">—</span></p><p id="wind-estimate-status" class="muted note">최근 관측 대기</p></div>
+      <div id="rotor-demo-control"><label class="layer-toggle"><input id="rotor-demo" type="checkbox" disabled>인근 지상풍 기반 회전 시연</label><p class="muted note">최근 관측이 있고 추정 회전이 0보다 클 때만 움직입니다. 실제 터빈 RPM·운전 상태가 아닙니다.</p></div>
+      <details id="grid-note" class="sources"><summary>데이터·추정 범위와 GPU 결과</summary><p>탐라–한림 일부 실제 영상과 DSM 위에 풍력·PV·변전소·송전 구조를 함께 배치했습니다. 시점 버튼은 같은 장면 안에서 이동합니다. 범위 밖 시설과 경로는 표시하지 않습니다.</p><p>영상: 공간정보 오픈플랫폼(브이월드) Satellite. 촬영 기준일은 미확인입니다. 고도: Copernicus DSM / EGM2008, 약30m 원천을 약60m 간격으로 표시합니다. 건물·식생을 포함하며 세부 측량 자료는 아닙니다.</p><p>시설의 위치·경로는 원천 GIS입니다. 풍력 부품·철탑·전선 처짐·변전소 배치·PV 패널 배열은 추정 형상입니다. PV 등록 용량은 실측 발전량이 아니며, 동일 좌표의 다른 등록 기록이 있을 수 있습니다. 전기적 연결·흐름은 미확인입니다.</p><p>풍속 기반 추정은 가까운 기상청 지상 관측소의 10분 평균을 그대로 넣은 예시입니다. 허브 높이 풍속·실제 RPM·터빈별 출력이나 운전 상태가 아닙니다. <a href="https://www.visiongroup21.eu/en/pdf/tech6c.pdf" target="_blank" rel="noreferrer">구형 Doosan WinDS3000/91 자료</a>의 3/13/25 m/s 및 15.7 RPM을 잠정 가정하고, <a href="https://www.energy.gov/cmei/systems/windexchange/small-wind-guidebook" target="_blank" rel="noreferrer">미 에너지부 풍력 안내</a>의 풍속 세제곱 관계로 3 MW까지 예시 출력을 계산합니다. 실제 제조사 출력곡선이나 탐라 현장 설정으로 확인된 값이 아닙니다. 정격 이하 회전은 일정한 날개끝 속도비 가정의 시각화이며, 0 RPM 표시는 실제 블레이드 정지를 증명하지 않습니다.</p><p>대화형 장면은 접속 기기의 WebGL로 표시합니다. 아래 PNG는 건물 비교 모형을 추가하기 전 통합 장면을 서버 GPU 1의 Omniverse RTX로 렌더한 정지 화면입니다. 실시간 스트리밍은 아닙니다.</p><p>GPU 렌더: <a href="/omniverse/local-array.png">풍력·해안</a> · <a href="/omniverse/local-overview.png">통합 구역</a> · <a href="/omniverse/local-terrain.png">고도·지형</a> · <a href="/omniverse/local-pv.png">태양광</a></p><p><a href="/local/manifest.json">원천·좌표·추정 기록</a> · <a href="/local/CREDITS.txt">출처·이용 조건</a></p></details>
+      <details class="inspector" open><summary>구역 내 시설 <span id="facility-count"></span></summary><ul id="facilities"></ul></details>
+    </aside>
+  </main>
+  <footer class="state-panel">
+    <div class="state-heading"><h2>제주 전체 수급 <span class="muted">실제 관측</span></h2><span id="state-status" role="status">불러오는 중</span><button id="refresh">다시 읽기</button></div>
+    <dl id="metrics"><div><dt>수요</dt><dd id="demand_mw">—</dd></div><div><dt>공급 용량</dt><dd id="supply_capacity_mw">—</dd></div><div><dt>풍력</dt><dd id="wind_mw">—</dd></div><div><dt>태양광</dt><dd id="solar_mw">—</dd></div><div><dt>재생에너지 합계</dt><dd id="renewable_total_mw">—</dd></div></dl>
+    <p id="state-source" class="muted">지역 집계이며 개별 시설의 실측 출력이 아닙니다.</p>
+  </footer>
+</body>
+</html>

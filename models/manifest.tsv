@@ -1,0 +1,5 @@
+# key	repo_id	revision	access	files (space-separated; * means entire repo)
+trellis2	microsoft/TRELLIS.2-4B	af44b45f2e35a493886929c6d786e563ec68364d	public	*
+decoder	microsoft/TRELLIS-image-large	25e0d31ffbebe4b5a97464dd851910efc3002d96	public	ckpts/ss_dec_conv3d_16l8_fp16.json ckpts/ss_dec_conv3d_16l8_fp16.safetensors
+dinov3	facebook/dinov3-vitl16-pretrain-lvd1689m	ea8dc2863c51be0a264bab82070e3e8836b02d51	gated	*
+rmbg	briaai/RMBG-2.0	5df4c9c76d8170882c34f6986e848ee07fd0ba43	gated	*

@@ -1,11 +1,13 @@
 # 제주 전력망 디지털 트윈 구축 기획서 v0.3
 
+> 2026-09-30 동기화: 원천 `feat/async-data-bridge@3cc3a3b`의 설계·데이터 서버 기록이다. 본문의 “현재 서버”는 데이터 서버이며, GPU 서버의 최신 구현·검증 완료 상태는 [로컬 구현 계획](jeju_power_grid_implementation_plan.md)을 우선 참고한다.
+
 ## 오픈소스 Image-to-3D · A6000 두 장 · GLB/OpenUSD · Rust·Redis·WebSocket
 
 - 작성일: 2026-09-29, Asia/Seoul.
 - 현재 정본 위치: `/home/dlwhdtmd/energy-digital-twin/jeju_power_grid_digital_twin_design.md`.
 - 반영한 사용자 수정: Higgsfield를 제외하고 오픈소스 Image-to-3D 모델을 사용한다. 이전 대상 GPU는 사용자 확인 기준 A6000 두 장이다. Omniverse·Unity·Unreal 연동을 검증 가능한 요구사항으로 포함한다. VWorld/GIS/DEM은 위치·높이·배치의 보조 자료다.
-- 문서 단계: 사용자 검토용 설계 기획서. 구현 완료·통합시험 완료를 뜻하지 않는다.
+- 문서 단계: 설계 기획서와 구현 진행 기록. 현재 서버 브릿지의 구현·실제 DB/HTTP/WS 검증은 완료했고, GPU 제품·시뮬레이션·3D 통합은 후속 단계다. 전체 디지털 트윈의 완료를 뜻하지 않는다.
 - 작성 방식: Superpowers `brainstorming`의 architectural 경로. 기존 요구와 타당성 조사에 근거해 범위·구성·검증 기준을 정의한다.
 - 선행 문서: [기획서 v0.1](jeju_power_grid_digital_twin_plan.md), [데이터·수학·Rust 타당성 검토](jeju_power_grid_data_and_modeling_review.md).
 - 1차 결과물: 제주 전력설비를 실제 좌표에 배치하고, 카메라 이동·설비 선택·시간 변경이 가능한 연구·시연용 3D 앱.
@@ -262,7 +264,7 @@ G0–G3가 이번 MVP 설계의 범위다. G4–G5는 후속 프로젝트의 조
 
 이 기획서는 사용자가 합의한 목적과 확보 데이터에 근거한 검토용 v0.3다. 검토 시에는 사진 기반 GPU 제작·엔진 호환성·외부 데이터 연결, Docker·Redis·WS 계약, 관측/추정 구분과 G0–G3 완료 기준을 확인한다.
 
-[구현 계획](jeju_power_grid_implementation_plan.md)에 Rust API·S0/S1 계산·GPU 자산 제작·엔진 검증 작업을 구체화한다. GPU/렌더러 변경을 반영해 기존 Task 5를 대체한다. 제품 코드·의존성 설치·모델 다운로드·GPU 이전은 아직 수행하지 않았다.
+[구현 계획](jeju_power_grid_implementation_plan.md)에 Rust API·S0/S1 계산·GPU 자산 제작·엔진 검증 작업을 구체화한다. GPU/렌더러 변경을 반영해 기존 Task 5를 대체한다. 현재 서버의 브릿지 코드·Rust 의존성·Docker 실행은 완료했다. GPU 제품 코드·모델 다운로드·GPU 이전은 아직 수행하지 않았다.
 
 ## 14. 제주 실물 사진 반영과 3D 환경 제작
 
@@ -367,7 +369,7 @@ VWorld는 제주 공간 자료·위치·높이·기존 외형의 보조 후보�
 |---|---|---|
 | VWorld WebGL 3D 지도 API 3.0 | 제공된 3D 지역 공간에 설비 모델·선로·정보를 추가 | 공식 안내는 JavaScript SDK와 KTX 2.0 기반 3D Tiles 적용을 설명. 운영기관은 3D 건물·시설물 제공을 안내. 프로젝트 키로 신창 구역의 지형/건물/텍스처와 기준일을 실제 확인해야 함 |
 | VWorld 2D데이터·WMS/WFS | 건물·도로·경계 등 제공되는 geometry/속성을 배치 근거로 활용 | 좌표·속성 또는 지도 레이어를 얻는 경로. 현장 사진이나 모든 건물 외벽 텍스처를 반환하는 API로 취급하지 않음. 실제 레이어·필드·사용 조건 확인 필요 |
-| 현장 사진/거리 파노라마 API | 실제 도로 시점 확인·비교 | 이번 확인에서 VWorld 자체의 현장 거리 사진 API는 확인하지 못함. 별도 Kakao 로드뷰 공식 API는 인근 파노라마 조회·표시를 제공하며 모든 좌표에 사진이 있는 것은 아님. 3D mesh나 제작용 원본 사진 제공을 뜻하지 않음 |
+| 현장 사진/거리 파노라마 API | 지도에서 시설을 클릭하면 해당 좌표 인근의 실제 도로 장면을 보여주고, 없으면 사진 없음으로 표시 | [Kakao 공식 예제](https://apis.map.kakao.com/web/sample/basicRoadview2/)는 제주 좌표에서 지도 클릭→반경 내 파노라마 조회→로드뷰 표시를 구현한다. 외부 로드뷰 링크는 [공식 URL 형식](https://apis.map.kakao.com/web/guide/)으로 만들 수 있다. 앱 안에 로드뷰를 넣으려면 별도 Kakao JavaScript 키와 등록 도메인이 필요하다. 인근 도로에서 시설이 보이는지는 좌표별 확인이 필요하며, 로드뷰 표시가 3D mesh나 제작용 원본 사진 확보를 뜻하지 않음 |
 | 3D 원본 자료를 받아 Bevy에 넣기 | 화면까지 Rust, 로컬 모델 편집·독립 실행 | 현재 VWorld 웹 지도 사용 가능성과 원본 모델 저장·변환 가능성은 별도. 공식 제공 형식·권한·샘플을 확보한 뒤 판단. 지도에서 보이는 건물을 바로 GLB로 내려받을 수 있다고 가정하지 않음 |
 
 [VWorld 3D API 공식 안내](https://www.vworld.kr/dev/v4dv_opnws3dmap3guide_s001.do), [공공데이터포털의 국토부 3D API](https://www.data.go.kr/data/3073144/openapi.do), [운영기관의 제공 서비스](http://www.spacen.or.kr/vworld_mgm/business_info.do), [국토부 2D데이터 API](https://www.data.go.kr/data/15140372/openapi.do), [Kakao 로드뷰 공식 예제](https://apis.map.kakao.com/web/sample/basicRoadview/).
@@ -492,7 +494,7 @@ CPU 계산을 먼저 선택하는 것은 이 MVP의 설계 판단이며 실제 �
 3. 선택한 렌더러에서 대표 시설 ID 선택과 두 관측 시점 변경을 확인하고, WS 연결·새 snapshot·재접속을 검증한다. 원천의 신규 자료 대기 없이도 실제 과거 두 snapshot을 시험 환경에서 순서대로 전달해 연결 동작을 검증할 수 있다. 이를 현재 계측이라고 표시하지 않는다.
 4. 이미지 대비 외형, 좌표·축·scale, 결측·원천 지연, WS와 역사 모드의 충돌 방지, 느린 소비자, 선택한 렌더러의 FPS를 검사한 뒤 제주 전체로 확대한다.
 
-현재 완료 범위는 **키의 존재/인증 형태·컨테이너와 Redis 설정·공식 제작 기능 확인 및 기획서 보완**이다. 키의 실제 인증, 오픈소스 모델 추론/장면·엔진 연결, Docker 빌드, Rust DB 연결, 캐시·WS 통합시험과 GPU 성능 시험은 아직 수행하지 않았다.
+현재 완료 범위는 **기획서 보완과 현재 서버 데이터 브릿지의 Rust DB 연결·Docker 빌드/실행·HTTP/WS 검증**이다. 실제 API 키 인증, GPU 앱 Redis·시뮬레이션, 오픈소스 모델 추론/장면·엔진 연결과 GPU 성능 시험은 아직 수행하지 않았다. 브릿지의 실제 동작은 18.6절과 [실행 문서](.worktrees/async-data-bridge/bridge/README.md)에 기록한다.
 
 ## 17. 시뮬레이션 설계: Rust 계산과 3D 장면 연결
 
@@ -667,4 +669,8 @@ SSH 인증 성공과 포트 전달 허용은 별개다. 실제 터널 설정 때
 
 최종 제품 코드 작업 공간은 GPU 서버의 `~/energy-digital-twin`으로 계획하며 실제 home 경로·기존 파일을 확인한 뒤 생성한다. 현재 `/home/dlwhdtmd/energy-digital-twin`에는 방법론·기획·데이터 감사와 `bridge/` 구현만 둔다. GPU 제품 코드·모델·렌더러를 현재 서버에 구현하는 작업은 이 범위에 포함하지 않는다.
 
-현재 확인한 것은 SSH 접속과 GPU 제원이다. 브릿지·GPU 앱·상시 터널·HTTP/WS 데이터 전송은 아직 실행하지 않았다. 마운트, 방화벽, 원격 서비스 설정은 변경하지 않았다.
+2026-09-29 현재 서버의 `bridge/`에 Tokio·axum·sqlx 기반 비동기 브릿지를 구현하고 Docker로 `127.0.0.1:8091`에서 실행했다. 원천은 읽기 전용으로 조회하며 KST 컬럼을 UTC로 변환하고 0/NULL·품질·공급 용량·원천 ID를 보존한다. 최신 확인은 60초 주기 하나이며 WS 초기 상태·같은 시점 정정·원천 오류를 전달한다. 날짜 범위·연결/메시지 상한·DB/송신 timeout·종료 처리를 적용했다.
+
+자동 검사 7개와 별도 실제 DB 검사 1개가 통과했다. Docker HTTP에서 두 실제 시점의 5개 관측값과 시각을 DB와 대조했고 GIS 2,748개·HVDC 전체 경로·WS 초기 수신을 확인했다. 활성 WS를 둔 SIGTERM 정상 종료와 재시작 후 두 원천의 health도 확인했다. [구현/비동기 수신 방법](.worktrees/async-data-bridge/bridge/README.md).
+
+GPU 앱·상시 SSH 터널·서버 간 HTTP/WS 수신·추론·렌더러는 아직 실행하지 않았다. 마운트, 방화벽, 기존 수집기/DB와 원격 서비스 설정은 변경하지 않았다.

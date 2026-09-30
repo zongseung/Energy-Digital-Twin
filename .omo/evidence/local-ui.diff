@@ -1,0 +1,517 @@
+--- var/verification/local/before/app.js
++++ renderers/twin/app.js
+@@ -1,244 +1,155 @@
+ import * as THREE from 'three';
+-import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+ import {loadGrid} from '/twin/grid.js';
+ 
+ const el = (id) => document.getElementById(id);
+ const metricKeys = ['demand_mw', 'supply_capacity_mw', 'wind_mw', 'solar_mw', 'renewable_total_mw'];
+-let manifest, renderer, scene, camera, controls, selected, roots = [], rotors = [];
+-let demoFrame = 0, previousTime = 0, socket, reconnectTimer;
+-let contextLost = false;
+-let grid, turbineScene, activeMode = 'wind', gridLoading = false;
+-const sceneControls = ['inspect', 'overview', 'rotate', 'zoom-in', 'zoom-out', 'rotor-demo', 'wind-mode', 'grid-mode', 'terrain-view', 'terrain-overview', 'hvdc-view', 'pv-view'];
++const layers = ['wind', 'transmission', 'substation', 'pv', 'terrain'];
++const sceneControls = ['inspect', 'overview', 'wind-view', 'terrain-relief', 'terrain-view', 'pv-view', 'rotate', 'zoom-in', 'zoom-out', 'rotor-demo'];
++let renderer, scene, camera, controls, selected, grid;
++let demoFrame = 0, previousTime = 0, socket, reconnectTimer, contextLost = false;
+ function status(id, message, failed = false) {
+   el(id).textContent = message;
+   el(id).classList.toggle('error', failed);
+   el(id).setAttribute('role', failed ? 'alert' : 'status');
+ }
+ async function getJson(url) {
+-  const response = await fetch(url, {signal: AbortSignal.timeout(20000), cache:'no-store'});
++  const response = await fetch(url, {signal:AbortSignal.timeout(20000), cache:'no-store'});
+   if (!response.ok) throw new Error(`HTTP ${response.status}`);
+   return response.json();
+ }
+ function render() {
+-  if (renderer && !contextLost && !document.hidden) {
+-    if (activeMode === 'grid') grid?.update(camera);
+-    renderer.render(scene, camera);
+-  }
++  if (renderer && !contextLost && !document.hidden) { grid?.update(camera); renderer.render(scene, camera); }
+ }
+-function cameraAt(view, offset = [0, 0, 0]) {
+-  const width = el('viewport').clientWidth;
+-  controls.target.fromArray(view.target).add(new THREE.Vector3(...offset));
+-  camera.position.fromArray(view.position).add(new THREE.Vector3(...offset));
+-  camera.fov = view.fov || 48; camera.updateProjectionMatrix();
+-  // Fit the vertical turbine silhouette when the canvas is narrow.
+-  camera.position.sub(controls.target).multiplyScalar(Math.max(1, 650 / width) * (view === manifest.cameras.inspect ? 1.35 : 1)).add(controls.target);
+-  controls.update(); render();
++function cameraAt(view, scale = 1) {
++  controls.target.fromArray(view.target);
++  camera.position.fromArray(view.position).sub(controls.target).multiplyScalar(Math.max(1, 650 / el('viewport').clientWidth) * scale).add(controls.target);
++  camera.fov = view.fov || 48; camera.updateProjectionMatrix(); controls.update(); render();
+ }
+ function inspect() {
+-  if (!selected || !controls || contextLost) return;
+-  if (selected.view) { cameraAt(selected.view); return; }
+-  const offset = selected.position.map((v, i) => v - manifest.facilities[0].position[i]);
+-  cameraAt(manifest.cameras.inspect, offset);
++  if (selected && controls && !contextLost) cameraAt(selected.view, selected.kind === 'wind' ? 1.35 : 1);
++}
++function revealSelection() {
++  if (matchMedia('(min-width:768px) and (min-height:601px)').matches) document.querySelector('.sidebar').scrollTop = 0;
++  else el('viewport').scrollIntoView({block:'start'});
+ }
+ function choose(record, focus = true) {
+-  selected = record;
+-  document.body.dataset.selected = record.id;
+-  el('selected-name').textContent = record.name || `탐라 터빈 ${record.node.slice(1)}`;
+-  const geometryNote = record.kind === 'pv' ? '등록 위치 / 패널 배열 추정' : activeMode === 'grid' ? '원천 위치·경로 / 외형 추정' : '추정 외형';
+-  el('scene-title').textContent = `${el('selected-name').textContent} · ${geometryNote}`;
++  selected = record; document.body.dataset.selected = record.id;
++  el('selected-name').textContent = record.name;
++  el('scene-title').textContent = `${record.name} · 실제 위치 / 설비 외형 추정`;
+   status('selection-status', `선택됨 · ${record.id}`);
+   el('facility-detail').replaceChildren();
+-  const rows = record.rows || [
+-    ['원천 좌표 (경도, 위도)', record.coordinates.map((n) => Number(n).toFixed(6)).join(', ')],
+-    ['단지 공개 제원', `${manifest.assetassumptions.verified_operator_spec.rated_power_mw} MW · 회전자 직경 ${manifest.assetassumptions.verified_operator_spec.rotor_diameter_m} m`],
+-    ['추정 형상', `허브 ${manifest.assetassumptions.estimated.hub_height_m} m · 나셀 / 블레이드 / 재킷 기초`],
+-    ['개별 터빈 실측 출력', '— (계측 미연결)'],
+-  ];
+-  for (const [label, value] of rows) {
++  for (const [label, value] of record.rows) {
+     const dt = document.createElement('dt'), dd = document.createElement('dd');
+     dt.textContent = label; dd.textContent = value; el('facility-detail').append(dt, dd);
+   }
+   for (const button of el('facilities').querySelectorAll('button')) {
+     const active = button.dataset.id === record.id;
+     button.setAttribute('aria-pressed', String(active));
+-    button.querySelector('small').textContent = active ? '선택됨' : (button.dataset.tag || '3 MW');
++    button.querySelector('small').textContent = active ? '선택됨' : button.dataset.tag;
+   }
+-  grid?.highlight(activeMode === 'grid' ? record : null);
+-  if (focus) { inspect(); revealSelection(); }
+-  else render();
+-}
+-function revealSelection() {
+-  if (activeMode !== 'grid') return;
+-  if (matchMedia('(min-width:768px) and (min-height:601px)').matches) document.querySelector('.sidebar').scrollTop = 0;
+-  else el('viewport').scrollIntoView({block:'start'});
++  grid.highlight(record);
++  if (focus) { inspect(); revealSelection(); } else render();
+ }
+ function populate() {
+-  const records = activeMode === 'wind' ? manifest.facilities : grid.records.filter((r) => grid.visible[r.layer]);
++  const records = grid.records.filter((r) => grid.visible[r.layer]);
+   el('facilities').replaceChildren();
+   for (const record of records) {
+     const li = document.createElement('li'), button = document.createElement('button');
+     const name = document.createElement('strong'), tag = document.createElement('small');
+     button.className = 'facility'; button.dataset.id = record.id;
+-    button.setAttribute('aria-pressed', 'false'); name.textContent = record.name || record.node;
+-    button.dataset.tag = activeMode === 'wind' ? '3 MW' : ({transmission:'송전',hvdc:'HVDC',cable:'케이블',substation:'변전소',pv:'PV'})[record.kind];
++    button.setAttribute('aria-pressed', 'false'); name.textContent = record.name;
++    button.dataset.tag = ({wind:'풍력',transmission:'송전',hvdc:'HVDC',cable:'케이블',substation:'변전소',pv:'PV'})[record.kind];
+     tag.textContent = button.dataset.tag; button.append(name, tag); button.onclick = () => choose(record);
+     li.append(button); el('facilities').append(li);
+   }
+-  el('facility-count').textContent = `· ${records.length}${activeMode === 'wind' ? '기' : '개'}`;
+-  el('terrain-credit').textContent = `${manifest.sources.find((s) => s.kind === 'DSM')?.notice || 'Copernicus DSM'} · DSM 30 m / EGM2008. 지형은 시설 상세 측량 자료가 아닙니다.`;
++  el('facility-count').textContent = `· ${records.length}개`;
+   if (selected && records.some((r) => r.id === selected.id)) choose(selected, false);
+-  else if (records.length) choose(records[0], false);
++  else if (records.length) choose(records.find((r) => r.kind === 'wind') || records[0], false);
+   else {
+     selected = null; delete document.body.dataset.selected;
+-    el('selected-name').textContent = '표시할 시설 없음';
+-    status('selection-status', '송전 경로·HVDC·변전소·PV 레이어를 켜세요.');
+-    el('scene-title').textContent = '표시할 시설 없음';
+-    el('facility-detail').replaceChildren(); grid?.highlight(null);
++    el('selected-name').textContent = el('scene-title').textContent = '표시할 시설 없음';
++    status('selection-status', '풍력·송전·변전소·태양광 레이어를 켜세요.');
++    el('facility-detail').replaceChildren(); grid.highlight(null);
+   }
+ }
+ async function startScene() {
+   try {
+-    manifest = await getJson('/twin/manifest.json');
+-    if (!Array.isArray(manifest.facilities) || manifest.facilities.length !== 10) throw new Error('Invalid facilities');
+-    populate();
+     renderer = new THREE.WebGLRenderer({antialias:true});
+     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .9;
+     scene = new THREE.Scene(); scene.background = new THREE.Color('#829fab');
+-    scene.fog = new THREE.Fog('#829fab', 6500, 18000);
+-    camera = new THREE.PerspectiveCamera(48, 1, .5, 30000);
++    camera = new THREE.PerspectiveCamera(48, 1, .5, 70000);
+     const pmrem = new THREE.PMREMGenerator(renderer), environment = new RoomEnvironment();
+-    scene.environment = pmrem.fromScene(environment, .04).texture;
+-    scene.environmentIntensity = .3;
++    scene.environment = pmrem.fromScene(environment, .04).texture; scene.environmentIntensity = .3;
+     environment.dispose(); pmrem.dispose();
+     scene.add(new THREE.HemisphereLight(0xdceeff, 0x475354, .7));
+     const sun = new THREE.DirectionalLight(0xfff4dd, 2); sun.position.set(1000, 1500, 600); scene.add(sun);
+     el('viewport').append(renderer.domElement);
+-    renderer.domElement.setAttribute('aria-label', '제주 전력시설 3D. 시설 목록과 시점 버튼으로도 조작할 수 있습니다.');
++    renderer.domElement.setAttribute('aria-label', '탐라–한림 실제 영상·지형과 전력시설 3D. 목록과 시점 버튼으로도 조작할 수 있습니다.');
+     renderer.domElement.addEventListener('webglcontextlost', (event) => {
+-      event.preventDefault(); contextLost = true; stopDemo(); el('rotor-demo').checked = false;
+-      controls.enabled = false;
++      event.preventDefault(); contextLost = true; stopDemo(); el('rotor-demo').checked = false; controls.enabled = false;
+       for (const id of sceneControls) el(id).disabled = true;
+       document.body.dataset.ready = 'false'; el('map-status').hidden = false;
+-      status('map-status', '3D 연결이 중단되었습니다. 페이지를 새로고침하세요. 시설 목록과 관측값은 계속 확인할 수 있습니다.', true);
++      status('map-status', '3D 연결이 중단되었습니다. 새로고침하세요. 시설 목록과 관측값은 계속 확인할 수 있습니다.', true);
+     });
+     controls = new OrbitControls(camera, renderer.domElement);
+-    controls.minDistance = 40; controls.maxDistance = 12000; controls.maxPolarAngle = Math.PI * .49;
++    controls.minDistance = 20; controls.maxDistance = 50000; controls.maxPolarAngle = Math.PI * .49;
+     controls.addEventListener('change', render);
+-    const gltf = await new GLTFLoader().loadAsync('/twin/scene.glb');
+-    if (contextLost) return;
+-    turbineScene = gltf.scene; scene.add(turbineScene);
+-    for (const record of manifest.facilities) {
+-      const root = gltf.scene.getObjectByName(record.node);
+-      const rotor = root?.getObjectByName(record.rotor_node);
+-      if (!root || !rotor) throw new Error('Facility parts missing');
+-      root.userData.facility = record; roots.push(root); rotors.push(rotor);
+-    }
+     const resize = () => {
+       const {clientWidth:w, clientHeight:h} = el('viewport');
+-      renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+-      grid?.resize(w, h);
+-      render();
++      renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); grid?.resize(w, h); render();
+     };
+-    new ResizeObserver(resize).observe(el('viewport')); resize(); inspect();
++    new ResizeObserver(resize).observe(el('viewport')); resize();
++    grid = await loadGrid();
++    populate();
++    if (contextLost) return;
++    scene.add(grid.object); grid.resize(el('viewport').clientWidth, el('viewport').clientHeight);
+     const raycaster = new THREE.Raycaster(); let down;
+     renderer.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
+     renderer.domElement.addEventListener('pointerup', (e) => {
+       if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+       const box = renderer.domElement.getBoundingClientRect();
+       raycaster.setFromCamera(new THREE.Vector2((e.clientX - box.left) / box.width * 2 - 1, -(e.clientY - box.top) / box.height * 2 + 1), camera);
+-      const pickables = activeMode === 'wind' ? roots : grid.pickables.filter((object) => object.visible);
+-      raycaster.params.Points.threshold = activeMode === 'grid' ? Math.max(3, camera.position.distanceTo(controls.target) / 180) : 1;
+-      let hit = raycaster.intersectObjects(pickables, true)[0]?.object;
++      raycaster.params.Points.threshold = Math.max(3, camera.position.distanceTo(controls.target) / 180);
++      let hit = raycaster.intersectObjects(grid.pickables.filter((object) => object.visible), true)[0]?.object;
+       while (hit && !hit.userData.facility) hit = hit.parent;
+       if (hit) { choose(hit.userData.facility, false); revealSelection(); }
+     });
+-    for (const id of sceneControls) el(id).disabled = contextLost;
+-    el('map-status').hidden = true; document.body.dataset.ready = 'true'; render();
+-    if (new URLSearchParams(location.search).get('view') === 'grid') switchMode('grid');
++    for (const id of sceneControls) el(id).disabled = false;
++    for (const layer of layers) el(`layer-${layer}`).disabled = false;
++    el('map-status').hidden = true; document.body.dataset.ready = 'true'; cameraAt(grid.data.cameras.array);
+   } catch (error) {
+-    console.error('Facility scene failed', error);
+-    document.body.dataset.ready = 'false';
+-    status('map-status', '시설 3D를 불러오지 못했습니다. 페이지를 새로고침하세요. 원천 정보와 지역 관측은 별도로 확인할 수 있습니다.', true);
++    console.error('Local scene failed', error); document.body.dataset.ready = 'false';
++    el('map-status').hidden = false;
++    status('map-status', '통합 지형·시설을 불러오지 못했습니다. 페이지를 새로고침하세요. 지역 관측은 별도로 확인할 수 있습니다.', true);
+   }
+ }
+ function stopDemo() { cancelAnimationFrame(demoFrame); demoFrame = 0; previousTime = 0; }
+ function animate(time) {
+   if (!el('rotor-demo').checked || document.hidden || contextLost) { stopDemo(); return; }
+-  const delta = previousTime ? Math.min((time - previousTime) / 1000, .1) : 0;
+-  previousTime = time;
+-  for (const rotor of rotors) rotor.rotateX(delta * 4 * Math.PI * 2 / 60);
++  const delta = previousTime ? Math.min((time - previousTime) / 1000, .1) : 0; previousTime = time;
++  for (const rotor of grid.rotors) rotor.rotateX(delta * 4 * Math.PI * 2 / 60);
+   render(); demoFrame = requestAnimationFrame(animate);
++}
++function enableLayer(layer) {
++  if (!grid.visible[layer]) { grid.setLayer(layer, true); el(`layer-${layer}`).checked = true; populate(); }
++  if (layer === 'wind') el('rotor-demo').disabled = contextLost;
+ }
+ el('rotor-demo').onchange = () => { stopDemo(); if (el('rotor-demo').checked) demoFrame = requestAnimationFrame(animate); };
+ el('inspect').onclick = inspect;
+-el('overview').onclick = () => cameraAt(activeMode === 'wind' ? (manifest.cameras.array || manifest.cameras.overview) : grid.data.cameras.network);
+-el('terrain-view').onclick = () => {
+-  const representative = grid.records.find((r) => r.id === 'hub:power_line:3596');
+-  if (!grid.visible.transmission) { el('layer-transmission').checked = true; grid.setLayer('transmission', true); populate(); }
+-  if (!grid.visible.terrain) { el('layer-terrain').checked = true; grid.setLayer('terrain', true); }
+-  choose(representative); el('scene-title').textContent = '한림 송전선 · 실제 지형 / 철탑·도체 추정';
++el('overview').onclick = () => { enableLayer('terrain'); cameraAt(grid.data.cameras.overview); el('scene-title').textContent = '탐라–한림 일부 · 실제 영상 + DSM / 시설 통합'; };
++el('wind-view').onclick = () => { enableLayer('wind'); enableLayer('terrain'); cameraAt(grid.data.cameras.array); el('scene-title').textContent = '탐라 풍력과 주변 실제 지형'; };
++el('terrain-relief').onclick = () => { enableLayer('terrain'); cameraAt(grid.data.cameras.terrain); el('scene-title').textContent = `실제 DSM 고도 · 구역 최고 약 ${Math.round(grid.data.terrain.height_range_m[1])} m / 수직 배율 1:1`; };
++el('terrain-view').onclick = () => { enableLayer('transmission'); enableLayer('terrain'); choose(grid.records.find((r) => r.id === 'hub:power_line:3596')); };
++el('pv-view').onclick = () => { enableLayer('pv'); enableLayer('terrain'); choose(grid.records.find((r) => r.kind === 'pv')); };
++for (const layer of layers) el(`layer-${layer}`).onchange = (event) => {
++  grid.setLayer(layer, event.target.checked);
++  if (layer === 'wind') { stopDemo(); el('rotor-demo').checked = false; el('rotor-demo').disabled = !event.target.checked || contextLost; }
++  populate(); render();
+ };
+-el('terrain-overview').onclick = () => {
+-  if (!grid.visible.terrain) { el('layer-terrain').checked = true; grid.setLayer('terrain', true); }
+-  cameraAt(grid.data.cameras.overview); el('scene-title').textContent = '탐라–한림 일부 지형 · DSM + 토지피복';
+-};
+-el('hvdc-view').onclick = () => {
+-  if (!grid.visible.hvdc) { el('layer-hvdc').checked = true; grid.setLayer('hvdc', true); populate(); }
+-  cameraAt(grid.data.cameras.hvdc); el('scene-title').textContent = 'HVDC 전체 경로 · 제주 밖 지형 미포함';
+-};
+-el('pv-view').onclick = () => {
+-  if (!grid.visible.pv) { el('layer-pv').checked = true; grid.setLayer('pv', true); populate(); }
+-  choose(grid.records.find((r) => r.kind === 'pv'));
+-};
+-el('wind-mode').onclick = () => switchMode('wind');
+-el('grid-mode').onclick = () => switchMode('grid');
+-for (const layer of ['transmission', 'hvdc', 'substation', 'terrain', 'pv']) el(`layer-${layer}`).onchange = (event) => {
+-  grid.setLayer(layer, event.target.checked); populate(); render();
+-};
+-async function switchMode(mode) {
+-  if (!renderer || contextLost || gridLoading) return;
+-  if (mode === 'grid' && !grid) {
+-    gridLoading = true; el('grid-mode').disabled = true; el('wind-mode').disabled = true;
+-    el('map-status').hidden = false; status('map-status', '송전망·서부 지형 불러오는 중…');
+-    try {
+-      grid = await loadGrid(); scene.add(grid.object); grid.object.visible = false;
+-      grid.resize(el('viewport').clientWidth, el('viewport').clientHeight);
+-      document.body.dataset.gridReady = 'true';
+-    } catch (error) {
+-      console.error('Network scene failed', error);
+-      status('map-status', '송전망 자료를 불러오지 못했습니다. 제주 전력망 버튼으로 다시 시도하세요.', true);
+-      return;
+-    } finally {
+-      gridLoading = false; el('grid-mode').disabled = contextLost; el('wind-mode').disabled = contextLost;
+-    }
+-    if (contextLost) return;
+-  }
+-  stopDemo(); el('rotor-demo').checked = false;
+-  activeMode = mode; selected = null; document.body.dataset.mode = mode;
+-  turbineScene.visible = mode === 'wind'; if (grid) grid.object.visible = mode === 'grid';
+-  scene.fog = mode === 'wind' ? new THREE.Fog('#829fab', 6500, 18000) : null;
+-  scene.background.set(mode === 'wind' ? '#829fab' : '#1a303b');
+-  camera.far = mode === 'wind' ? 30000 : 500000; camera.updateProjectionMatrix();
+-  controls.maxDistance = mode === 'wind' ? 12000 : 350000;
+-  for (const id of ['grid-layers','terrain-view','terrain-overview','hvdc-view','pv-view','grid-note']) el(id).hidden = mode !== 'grid';
+-  for (const id of ['rotor-demo-control','wind-sources']) el(id).hidden = mode !== 'wind';
+-  el('rotor-demo').disabled = mode !== 'wind';
+-  el('wind-mode').setAttribute('aria-pressed', String(mode === 'wind'));
+-  el('grid-mode').setAttribute('aria-pressed', String(mode === 'grid'));
+-  el('overview').textContent = mode === 'wind' ? '단지 전체' : '제주 전체';
+-  el('list-title').textContent = mode === 'wind' ? '터빈 목록' : '선로·변전소·PV 목록';
+-  el('scene-note').textContent = mode === 'wind' ? '외형·기초·방향 추정 / 단위 m · 실제 지형 DSM' : '경로·시설 위치: GIS / 전기적 연결·전력 흐름 미확인';
+-  el('map-status').hidden = true; populate();
+-  if (mode === 'wind') inspect(); else cameraAt(grid.data.cameras.network);
+-  render();
+-}
+-el('rotate').onclick = () => {
+-  camera.position.sub(controls.target).applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 6).add(controls.target);
+-  controls.update(); render();
+-};
++el('rotate').onclick = () => { camera.position.sub(controls.target).applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 6).add(controls.target); controls.update(); render(); };
+ for (const [id, factor] of [['zoom-in', .8], ['zoom-out', 1.25]]) el(id).onclick = () => {
+   const offset = camera.position.clone().sub(controls.target);
+   offset.setLength(THREE.MathUtils.clamp(offset.length() * factor, controls.minDistance, controls.maxDistance));
+--- var/verification/local/before/grid.js
++++ renderers/twin/grid.js
+@@ -4,34 +4,40 @@
+ import {LineGeometry} from 'three/addons/lines/LineGeometry.js';
+ import {LineMaterial} from 'three/addons/lines/LineMaterial.js';
+ 
+-const colors = {transmission:'#edc476', hvdc:'#bb9def', cable:'#83d5c1', substation:'#efb0ac', pv:'#9cbef5', coast:'#91afb0', selected:'#72cbd5'};
++const colors = {wind:'#e1e8e5', transmission:'#edc476', hvdc:'#bb9def', cable:'#83d5c1', substation:'#efb0ac', pv:'#9cbef5', coast:'#91afb0', selected:'#72cbd5'};
+ const labels = {transmission:'송전선', hvdc:'HVDC 경로', cable:'케이블', substation:'변전소·변환소'};
+ const voltage = (value) => value && Number.isFinite(Number(value)) ? `${Number(value) / 1000} kV (원천)` : '미상';
+ const vector = (position) => new THREE.Vector3(...position);
+ 
+ export async function loadGrid() {
+-  const response = await fetch('/grid/manifest.json', {signal:AbortSignal.timeout(20000), cache:'no-store'});
+-  if (!response.ok) throw new Error('Grid manifest unavailable');
++  const response = await fetch('/local/manifest.json', {signal:AbortSignal.timeout(20000), cache:'no-store'});
++  if (!response.ok) throw new Error('Local scene manifest unavailable');
+   const data = await response.json();
+-  if (!Array.isArray(data.routes) || data.routes.length !== 46 || !Array.isArray(data.facilities)) throw new Error('Invalid network manifest');
+-  const gltf = await new GLTFLoader().loadAsync('/grid/scene.glb');
+-  const object = new THREE.Group(); object.name = 'jeju_grid'; object.add(gltf.scene);
++  if (!Array.isArray(data.routes) || !Array.isArray(data.facilities) || !data.facilities.some((f) => f.kind === 'wind')) throw new Error('Invalid local scene manifest');
++  const gltf = await new GLTFLoader().loadAsync('/local/scene.glb');
++  const object = new THREE.Group(); object.name = 'tamra_hallim'; object.add(gltf.scene);
+   const records = [], pickables = [], materials = [], lines = new Map(), layers = new Map();
+-  const physical = new Map();
++  const physical = new Map(), rotors = [];
+   for (const item of data.facilities) {
+     const root = gltf.scene.getObjectByName(item.node);
+     if (!root) throw new Error(`Network model missing ${item.node}`);
+     physical.set(item.id, root);
++    if (item.rotor_node) {
++      const rotor = root.getObjectByName(item.rotor_node);
++      if (!rotor) throw new Error(`Missing rotor ${item.rotor_node}`);
++      rotors.push(rotor);
++    }
+   }
+   function attach(record, child) {
+     child.userData.facility = record; pickables.push(child);
+     const children = layers.get(record.layer) || []; children.push(child); layers.set(record.layer, children);
+   }
+   for (const route of data.routes) {
+-    if (!Array.isArray(route.points) || route.points.length < 2 || route.points.some((p) => p.length !== 3 || !p.every(Number.isFinite))) throw new Error('Invalid route positions');
+-    const record = {...route, kind:route.kind, layer:route.kind === 'hvdc' ? 'hvdc' : 'transmission'};
++    if (!Array.isArray(route.paths) || route.paths.some((path) => path.length < 2 || path.some((p) => p.length !== 3 || !p.every(Number.isFinite)))) throw new Error('Invalid local route positions');
++    if (!route.paths.length) continue;
++    const record = {...route, kind:route.kind, layer:'transmission'};
+     record.name = route.name || `${labels[route.kind]} ${route.id.split(':').at(-1)}`;
+-    const bounds = new THREE.Box3().setFromPoints(route.points.map(vector));
++    const bounds = new THREE.Box3().setFromPoints(route.paths.flat().map(vector));
+     record.position = bounds.getCenter(new THREE.Vector3()).toArray();
+     record.view = route.id === 'hub:power_line:3596' ? data.cameras.inspect : {
+       position:vector(record.position).add(new THREE.Vector3(0, 1, 1).normalize().multiplyScalar(Math.max(450, bounds.getSize(new THREE.Vector3()).length() * 1.4))).toArray(),
+@@ -43,21 +49,33 @@
+       ['형상 근거', route.id === 'hub:power_line:3596' ? 'GIS 경로 오버레이 / 근접 철탑·처짐: 추정' : 'GIS 경로 오버레이 / 굵기·높이: 시각화용'],
+       ['전기적 연결 / 실측 흐름', '미확인 / —'],
+     ];
+-    const geometry = new LineGeometry(); geometry.setPositions(route.points.flat());
+-    // GIS strokes are map overlays; physical conductors retain normal terrain occlusion.
+-    const material = new LineMaterial({color:colors[record.kind], linewidth:2.5, depthTest:false, depthWrite:false});
+-    const line = new Line2(geometry, material); line.renderOrder = 10; line.computeLineDistances();
+-    object.add(line); materials.push(material); lines.set(record.id, line); attach(record, line);
++    const routeLines = [];
++    for (const path of route.paths) {
++      const geometry = new LineGeometry(); geometry.setPositions(path.flat());
++      // GIS strokes are map overlays; physical conductors retain normal terrain occlusion.
++      const material = new LineMaterial({color:colors[record.kind], linewidth:2.5, depthTest:false, depthWrite:false});
++      const line = new Line2(geometry, material); line.renderOrder = 10; line.computeLineDistances();
++      object.add(line); materials.push(material); routeLines.push(line); attach(record, line);
++    }
++    lines.set(record.id, routeLines);
+     if (physical.has(record.id)) attach(record, physical.get(record.id));
+     records.push(record);
+   }
+-  for (const station of data.facilities.filter((f) => f.kind === 'substation' || f.kind === 'pv')) {
+-    const isPV = station.kind === 'pv';
++  for (const station of data.facilities.filter((f) => f.kind !== 'line')) {
++    const isPV = station.kind === 'pv', isWind = station.kind === 'wind';
+     const record = {...station, layer:station.kind, name:station.name || station.source_properties?.name || station.source_properties?.name_en || `시설 ${station.id.split(':').at(-1)}`};
+     record.view = station.inspect || {position:vector(station.position).add(new THREE.Vector3(-100, 85, 140)).toArray(), target:vector(station.position).add(new THREE.Vector3(0, 5, 0)).toArray(), fov:48};
++    if (isWind) {
++      const offset = vector(station.position).sub(vector(data.facilities.find((f) => f.kind === 'wind').position));
++      record.view = {...data.cameras.wind, position:vector(data.cameras.wind.position).add(offset).toArray(), target:vector(data.cameras.wind.target).add(offset).toArray()};
++    }
+     record.rows = [
+       ['원천 좌표 (경도, 위도)', station.coordinates.map((v) => Number(v).toFixed(6)).join(', ')],
+-      ...(isPV ? [
++      ...(isWind ? [
++        ['단지 공개 제원', '3 MW · 회전자 직경 91.59 m'],
++        ['형상 근거', '원천 위치 / 허브·나셀·블레이드·기초 추정'],
++        ['개별 발전량', '— (계측 미연결)'],
++      ] : isPV ? [
+         ['등록 설비용량', Number.isFinite(station.source_properties?.capacity_kw) ? `${station.source_properties.capacity_kw} kW` : '미상'],
+         ['자료 기준일', station.source_properties?.data_date || '미상'],
+         ['형상 근거', '등록 위치 / 패널 수·부지·설치 방식 추정'],
+@@ -73,20 +91,16 @@
+     const marker = new THREE.Points(new THREE.BufferGeometry().setFromPoints([vector(station.position).add(new THREE.Vector3(0, 15, 0))]), new THREE.PointsMaterial({color:colors[record.kind], size:9, sizeAttenuation:false}));
+     object.add(marker); attach(record, marker); records.push(record);
+   }
+-  const coastPositions = [];
+-  for (const path of data.coast || []) for (let i = 1; i < path.length; i++) coastPositions.push(...path[i-1], ...path[i]);
+-  const coast = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(coastPositions, 3)), new THREE.LineBasicMaterial({color:colors.coast}));
+-  object.add(coast);
+   const terrain = [];
+   gltf.scene.traverse((node) => { if (node.isMesh && /terrain|shore|ocean|landcover|road/.test(node.name)) terrain.push(node); });
+   layers.set('terrain', terrain);
+-  const visible = {transmission:true, hvdc:true, substation:true, terrain:true, pv:true};
++  const visible = {wind:true, transmission:true, substation:true, terrain:true, pv:true};
+   return {
+-    object, data, records, pickables, visible,
++    object, data, records, pickables, visible, rotors,
+     resize(width, height) { for (const material of materials) material.resolution.set(width, height); },
+     setLayer(layer, enabled) { visible[layer] = enabled; for (const child of layers.get(layer) || []) child.visible = enabled; },
+     highlight(record) {
+-      for (const [id, line] of lines) {
++      for (const [id, routeLines] of lines) for (const line of routeLines) {
+         const active = record?.id === id;
+         line.material.color.set(active ? colors.selected : colors[line.userData.facility.kind]);
+         line.material.linewidth = active ? 4.5 : 2.5;
+@@ -95,8 +109,8 @@
+     // Keep map-width GIS paths separate from actual-size demonstration conductors.
+     update(camera) {
+       const detailed = records.find((r) => r.id === 'hub:power_line:3596');
+-      if (detailed) lines.get(detailed.id).visible = visible.transmission && camera.position.distanceTo(vector(detailed.view.target)) > 2500;
+-      for (const node of pickables) if (node.isPoints) node.visible = visible[node.userData.facility.layer] && camera.position.distanceTo(vector(node.userData.facility.position)) > 1500;
++      if (detailed) for (const line of lines.get(detailed.id)) line.visible = visible.transmission && camera.position.distanceTo(vector(detailed.view.target)) > 2500;
++      for (const node of pickables) if (node.isPoints) node.visible = visible[node.userData.facility.layer] && camera.position.distanceTo(vector(node.userData.facility.position)) > (node.userData.facility.kind === 'wind' ? 8000 : 1500);
+     },
+   };
+ }
+--- var/verification/local/before/index.html
++++ renderers/twin/index.html
+@@ -2,39 +2,37 @@
+ <html lang="ko">
+ <head>
+   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+-  <title>제주 전력시설 · 풍력·송전망·태양광 3D</title>
++  <title>탐라–한림 · 실제 영상과 지형 3D</title>
+   <link rel="stylesheet" href="/site/style.css"><link rel="stylesheet" href="/twin/style.css">
+   <script type="importmap">{"imports":{"three":"/vendor/build/three.module.js","three/addons/":"/vendor/examples/jsm/"}}</script>
+   <script type="module" src="/twin/app.js"></script>
+ </head>
+-<body data-mode="wind">
+-  <header class="topbar"><h1>제주 전력시설 <span>3D</span></h1><nav aria-label="장면 선택"><button id="wind-mode" aria-pressed="true" disabled>탐라 풍력</button><button id="grid-mode" aria-pressed="false" disabled>제주 전력망</button></nav><span class="estimate">원천 좌표 · 추정 외형</span><a href="/site/">공간 자료 보기 ↗</a></header>
++<body>
++  <header class="topbar"><h1>탐라–한림 <span>3D</span></h1><span class="estimate">실제 영상·고도 / 설비 외형 추정</span><a href="/omniverse/local-array.png" target="_blank" rel="noreferrer">서버 GPU 렌더 ↗</a></header>
+   <main class="workspace">
+     <section class="map-region" aria-label="제주 전력시설 3D 장면">
+       <div id="viewport"></div>
+       <div class="map-controls" aria-label="시점 조작">
+-        <button id="inspect" disabled>선택 시설</button><button id="overview" disabled>단지 전체</button>
+-        <button id="terrain-view" hidden disabled>한림 선로</button><button id="terrain-overview" hidden disabled>서부 지형</button><button id="pv-view" hidden disabled>태양광 3곳</button><button id="hvdc-view" hidden disabled>HVDC 전체</button>
++        <button id="overview" disabled>구역 전체</button><button id="wind-view" disabled>풍력·해안</button><button id="terrain-relief" disabled>고도·지형</button><button id="terrain-view" disabled>한림 선로</button><button id="pv-view" disabled>태양광</button><button id="inspect" disabled>선택 시설</button>
+         <button id="rotate" disabled>시점 회전</button><button id="zoom-in" disabled aria-label="3D 확대">＋</button><button id="zoom-out" disabled aria-label="3D 축소">−</button>
+       </div>
+-      <p id="map-status" role="status">시설 모델 불러오는 중…</p>
+-      <div class="scene-caption"><strong id="scene-title">탐라 해상풍력</strong><span>드래그: 회전 · 휠: 확대 · 시설 클릭: 선택</span><span id="scene-note">외형·기초·방향 추정 / 단위 m · 실제 지형 DSM</span></div>
++      <p id="map-status" role="status">실제 영상·지형과 시설 불러오는 중…</p>
++      <div class="scene-caption"><strong id="scene-title">탐라–한림 통합 장면</strong><span>드래그: 회전 · 휠: 확대 · 시설 클릭: 선택</span><span id="scene-note">영상: VWorld · 고도: Copernicus DSM / 개별 시설 계측 미연결</span></div>
+     </section>
+     <aside class="sidebar" aria-label="시설 정보">
+       <p class="eyebrow">JEJU · ENERGY INFRASTRUCTURE</p>
+-      <fieldset id="grid-layers" hidden><legend>표시 레이어</legend>
+-        <label class="layer-toggle"><input id="layer-transmission" type="checkbox" checked><span class="legend transmission">송전선·케이블</span></label>
+-        <label class="layer-toggle"><input id="layer-hvdc" type="checkbox" checked><span class="legend hvdc">HVDC 경로</span></label>
+-        <label class="layer-toggle"><input id="layer-substation" type="checkbox" checked><span class="legend station">변전소·변환소</span></label>
+-        <label class="layer-toggle"><input id="layer-pv" type="checkbox" checked><span class="legend pv">태양광 예시 3곳</span></label>
+-        <label class="layer-toggle"><input id="layer-terrain" type="checkbox" checked>서부 일부 지형</label>
++      <fieldset id="grid-layers"><legend>같은 장면의 표시 레이어</legend>
++        <label class="layer-toggle"><input id="layer-wind" type="checkbox" checked disabled><span class="legend wind">풍력 10기</span></label>
++        <label class="layer-toggle"><input id="layer-transmission" type="checkbox" checked disabled><span class="legend transmission">송전선·케이블</span></label>
++        <label class="layer-toggle"><input id="layer-substation" type="checkbox" checked disabled><span class="legend station">구역 내 변전소</span></label>
++        <label class="layer-toggle"><input id="layer-pv" type="checkbox" checked disabled><span class="legend pv">태양광 예시 3곳</span></label>
++        <label class="layer-toggle"><input id="layer-terrain" type="checkbox" checked disabled>실제 영상·지형</label>
+       </fieldset>
+       <h2 id="selected-name">시설 선택</h2><p id="selection-status" role="status">원천 자료를 불러오는 중</p>
+       <dl id="facility-detail"></dl>
+-      <div id="rotor-demo-control"><label class="layer-toggle"><input id="rotor-demo" type="checkbox" disabled>회전자 동작 시연 · 4 RPM</label><p class="muted note">시연 속도이며 실제 운전 상태가 아닙니다.</p></div>
+-      <details id="grid-note" class="sources" hidden><summary>경로·지형·추정 범위</summary><p>송전·케이블 46개 경로와 변전소·변환소 13개 위치. HVDC의 동일 경로 중복은 원천 ID를 묶어 표시합니다. 배전망은 포함하지 않습니다.</p><p>한림 송전선의 철탑 위치·높이·전선 처짐, 변전소 배치는 추정입니다. 개요 경로는 지형 위에 겹쳐 표시하며 굵기·고도는 실제 전선 직경·매설 깊이가 아닙니다. 전기적 연결과 흐름은 미확인입니다.</p><p>PV 3곳은 등록 위치의 대표 패널 배열입니다. 부지·설치 방식·실제 패널 수는 미확인이고, 등록 용량은 실측 발전량이 아닙니다. 같은 좌표를 쓰는 다른 등록 시설이 있을 수 있습니다.</p><p>지형은 탐라–한림 일부 Copernicus DSM / EGM2008, 토지피복은 원천 분류에 따른 표현용 색입니다. 제주 밖 HVDC 종점의 지형은 포함하지 않습니다.</p><p><a href="/grid/manifest.json">원천·추정값 기록</a> · <a href="/grid/CREDITS.txt">출처·이용 조건</a> · <a href="/grid/scene.glb" download>장면 GLB</a></p><p>GPU 렌더: <a href="/omniverse/grid-line.png">송전 구조</a> · <a href="/omniverse/grid-terrain.png">일부 지형</a> · <a href="/omniverse/grid-pv.png">태양광</a></p></details>
+-      <details class="inspector" open><summary><span id="list-title">터빈 목록</span> <span id="facility-count"></span></summary><ul id="facilities"></ul></details>
+-      <details id="wind-sources" class="sources"><summary>형상 가정과 출처</summary><p>단지 공개 제원: 3 MW, 회전자 직경 91.59 m. 허브 높이·부품 치수·해저 기초·방향은 추정값입니다. 각 원천 시설의 모델 형식은 별도 확인이 필요합니다.</p><p>사진을 참고해 작성한 부품 형상이며 실측 CAD나 사진측량 복원이 아닙니다. 화면 번호는 탐색용이며 공식 터빈 번호가 아닙니다.</p><p id="terrain-credit"></p><p><a href="http://tamra-owp.co.kr/2019/sub0204.php" target="_blank" rel="noreferrer">탐라해상풍력 공개 제원 ↗</a></p><p><a href="/twin/manifest.json">좌표·치수·원천 기록</a> · <a href="/twin/CREDITS.txt">저작자·이용 조건</a> · <a href="/twin/turbine.glb" download>시설 GLB</a></p></details>
++      <div id="rotor-demo-control"><label class="layer-toggle"><input id="rotor-demo" type="checkbox" disabled>풍력 회전 시연 · 4 RPM</label><p class="muted note">시연 속도이며 실제 운전 상태가 아닙니다.</p></div>
++      <details id="grid-note" class="sources"><summary>데이터·추정 범위와 GPU 결과</summary><p>탐라–한림 일부 실제 영상과 DSM 위에 풍력·PV·변전소·송전 구조를 함께 배치했습니다. 시점 버튼은 같은 장면 안에서 이동합니다. 범위 밖 시설과 경로는 표시하지 않습니다.</p><p>영상: 공간정보 오픈플랫폼(브이월드) Satellite. 촬영 기준일은 미확인입니다. 고도: Copernicus DSM / EGM2008, 약30m 원천을 약60m 간격으로 표시합니다. 건물·식생을 포함하며 세부 측량 자료는 아닙니다.</p><p>시설의 위치·경로는 원천 GIS입니다. 풍력 부품·철탑·전선 처짐·변전소 배치·PV 패널 배열은 추정 형상입니다. PV 등록 용량은 실측 발전량이 아니며, 동일 좌표의 다른 등록 기록이 있을 수 있습니다. 전기적 연결·흐름은 미확인입니다.</p><p>대화형 장면은 접속 기기의 WebGL로 표시합니다. 아래 PNG는 같은 통합 자산을 서버 GPU 1의 Omniverse RTX로 렌더한 정지 화면이며 실시간 스트리밍은 아닙니다.</p><p>GPU 렌더: <a href="/omniverse/local-array.png">풍력·해안</a> · <a href="/omniverse/local-overview.png">통합 구역</a> · <a href="/omniverse/local-pv.png">태양광</a></p><p><a href="/local/manifest.json">원천·좌표·추정 기록</a> · <a href="/local/CREDITS.txt">출처·이용 조건</a></p></details>
++      <details class="inspector" open><summary>구역 내 시설 <span id="facility-count"></span></summary><ul id="facilities"></ul></details>
+     </aside>
+   </main>
+   <footer class="state-panel">
+--- var/verification/local/before/style.css
++++ renderers/twin/style.css
+@@ -1,13 +1,11 @@
+ :root { --sidebar-w:300px; --map-min-h:540px; --estimate:#f0c674; --transmission:#edc476; --hvdc:#bb9def; --cable:#83d5c1; --station:#efb0ac; --pv:#9cbef5; --coast:#91afb0; }
+ .estimate { color:var(--estimate); font-size:var(--text-xs); }
+ .topbar { background:var(--surface); }
+-.topbar nav { display:flex; flex-wrap:wrap; gap:var(--space-2); }
+-.topbar button[aria-pressed=true] { background:var(--selected); }
+ #grid-layers { margin:0 0 var(--space-4); padding:0 0 var(--space-3); border:0; border-bottom:1px solid var(--border); }
+ #grid-layers legend { color:var(--muted); font-size:var(--text-xs); }
+ #grid-layers label { margin:0; }
+ .legend::before { content:''; display:inline-block; width:var(--space-3); height:var(--space-1); margin-right:var(--space-2); background:currentColor; vertical-align:middle; }
+-.transmission { color:var(--transmission); } .hvdc { color:var(--hvdc); } .station { color:var(--station); } .pv { color:var(--pv); }
++.wind { color:#e1e8e5; } .transmission { color:var(--transmission); } .hvdc { color:var(--hvdc); } .station { color:var(--station); } .pv { color:var(--pv); }
+ .map-region { background:#728e9a; overflow:hidden; }
+ #viewport { position:absolute; inset:0; }
+ #viewport canvas { display:block; width:100%; height:100%; touch-action:none; }
