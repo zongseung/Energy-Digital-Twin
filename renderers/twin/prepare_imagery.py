@@ -4,6 +4,7 @@
 python3 renderers/twin/prepare_imagery.py [--self-test]
 python3 renderers/twin/prepare_imagery.py --roofs   # z19 roof atlas for the Sinchang footprints
 python3 renderers/twin/prepare_imagery.py --terrain-detail   # z17 site AOI mosaic -> var/rendering/imagery-detail
+python3 renderers/twin/prepare_imagery.py --harbour-detail   # z17 harbour mosaics -> var/rendering/imagery-harbours/<name> + index.json
 Uses the existing vworld_key; credentials are never written to output metadata.
 """
 import argparse
@@ -76,7 +77,7 @@ def fetch(key, zoom, cache, job):
     return x, y, payload
 
 
-def fetch_all(key, zoom, cache, jobs):
+def fetch_all(key, zoom, cache, jobs, workers=6):
     """Fetch tiles in parallel; failed or blank tiles are recorded, never filled."""
     def attempt(job):
         try:
@@ -85,7 +86,7 @@ def fetch_all(key, zoom, cache, jobs):
             return (*job, None), str(error)
 
     tiles, records, failed = {}, [], []
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         for (x, y, payload), error in pool.map(attempt, sorted(jobs)):
             image = None if error else validate(payload)
             if image is not None and all(low == high for low, high in image.getextrema()):
@@ -106,6 +107,115 @@ def mosaic(bbox, zoom, tiles):
     for (x, y), tile_image in tiles.items():
         image.paste(tile_image, ((x - x0) * 256, (y - y0) * 256))
     return image, bounds
+
+
+def write_mosaic(output, bbox, zoom, tiles, records, failed):
+    """texture.jpg + manifest.json (the imagery-detail format) for one whole-tile mosaic; returns the metadata."""
+    image, bounds = mosaic(bbox, zoom, tiles)
+    output.mkdir(parents=True, exist_ok=True)
+    path = output / 'texture.jpg'
+    image.save(path, quality=94, subsampling=0)
+    w, s, e, n = bounds
+    lonlat = [math.degrees(w / 6378137), math.degrees(math.atan(math.sinh(s / 6378137))),
+              math.degrees(e / 6378137), math.degrees(math.atan(math.sinh(n / 6378137)))]
+    metadata = {'source': 'VWorld Satellite WMTS', 'attribution': '공간정보 오픈플랫폼(브이월드) / 국토교통부',
+                'documentation': 'https://www.vworld.kr/dev/v4dv_wmtsguide_s001.do',
+                'source_url_template': 'https://api.vworld.kr/req/wmts/1.0.0/{key}/Satellite/{z}/{y}/{x}.jpeg',
+                'crs': 'EPSG:3857', 'bounds': bounds, 'bbox_lon_lat': lonlat, 'requested_bbox_lon_lat': bbox,
+                'width': image.width, 'height': image.height, 'zoom': zoom, 'tile_count': len(records),
+                'failed_tile_count': len(failed),
+                'acquired_at': datetime.now(timezone.utc).isoformat(), 'capture_date': None,
+                'notice': 'Actual provider imagery; acquisition date is not photography date. Provider terms apply; local preview cache, not an open-data redistribution license.',
+                'processing': 'North-up WMTS mosaic; original tile pixels retained, JPEG encoded at quality94. No synthetic fill; failed tiles stay neutral grey, are listed in failed_tiles and are never mapped.',
+                'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'tiles': records, 'failed_tiles': failed}
+    (output / 'manifest.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + '\n')
+    return metadata
+
+
+# Harbour clusters of the KHOA 2026 coastline in the scene (exa-results/harbour-sports-data-2026-09-30.md §3.2): centre lon/lat, name.
+# Keys never contain '-': merged mosaic names join them with it.
+HARBOURS = {'chagwido': (126.1506, 33.3111, '차귀도 선착장'), 'gosan': (126.1650, 33.3104, '고산항(자구내)'),
+            'yongsu': (126.1653, 33.3230, '용수리포구'), 'sinchang_wind': (126.1648, 33.3374, '신창 풍력단지 옆 소형 포구(명칭 미확인)'),
+            'sinchang': (126.1791, 33.3480, '신창항(신창리포구)'), 'dumo': (126.1806, 33.3568, '두모리포구'),
+            'geumdeung': (126.1958, 33.3647, '금등 쪽 포구(명칭 미확인)'), 'panpo': (126.2003, 33.3662, '판포포구'),
+            'wollyeong': (126.2156, 33.3795, '월령포구'), 'geumneung': (126.2276, 33.3908, '금능포구'),
+            'biyang': (126.2300, 33.4052, '비양포구'), 'hyeopjae': (126.2433, 33.3986, '협재포구'),
+            'ongpo': (126.2502, 33.4042, '옹포포구(옹포항)'), 'hallim': (126.2578, 33.4174, '한림항'),
+            'suwon': (126.2633, 33.4253, '대수·평수포구(수원리)'), 'north_edge': (126.2725, 33.4351, 'bbox 북쪽 가장자리 포구(명칭 미확인)')}
+HARBOUR_CATS = {11, 12, 13, 14, 16, 17}  # KHOA CAT_COA 방파제·방사제·잔교·부두·상륙계단·선가대; 방벽 (15) lines the open coast too
+
+
+def harbour_of(lon, lat):
+    return min(HARBOURS, key=lambda k: math.hypot((lon - HARBOURS[k][0]) * math.cos(math.radians(lat)), lat - HARBOURS[k][1]))
+
+
+def harbour_boxes(features, detail_bbox, scene_bbox, buffer_m=400, zoom=17, max_px=4096):
+    """{name: lon/lat box}: each harbour's lines + buffer_m, clipped to the scene; harbours wholly inside detail_bbox are
+    skipped; overlapping boxes merge while the merged mosaic stays <= max_px on a side."""
+    points = {}
+    for f in features:
+        if f['properties']['CAT_COA'] in HARBOUR_CATS:
+            geom = f['geometry']
+            for line in [geom['coordinates']] if geom['type'] == 'LineString' else geom['coordinates']:
+                for lon, lat in line:
+                    points.setdefault(harbour_of(lon, lat), []).append((lon, lat))
+    w, s, e, n = detail_bbox
+
+    def fits(box):
+        x0, y0, x1, y1 = coverage(box, zoom)[0]
+        return max(x1 - x0 + 1, y1 - y0 + 1) * 256 <= max_px
+    boxes = []
+    for name, p in points.items():
+        if all(w <= lon <= e and s <= lat <= n for lon, lat in p):
+            continue
+        lons, lats = zip(*p)
+        # ponytail: spherical metres-to-degrees like roofs(); geodesic precision is irrelevant for a 400 m context margin.
+        dlat = buffer_m / 111320
+        dlon = dlat / math.cos(math.radians(sum(lats) / len(lats)))
+        box = [max(min(lons) - dlon, scene_bbox[0]), max(min(lats) - dlat, scene_bbox[1]),
+               min(max(lons) + dlon, scene_bbox[2]), min(max(lats) + dlat, scene_bbox[3])]
+        if not fits(box):
+            raise ValueError(f'{name} harbour box exceeds {max_px} px')
+        boxes.append(([name], box))
+    merged = True
+    while merged:  # ponytail: greedy pairwise merge in insertion order; fine for ~16 harbours
+        merged = False
+        for i in range(len(boxes)):
+            for j in range(i + 1, len(boxes)):
+                a, b = boxes[i][1], boxes[j][1]
+                union = [min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])]
+                if a[0] <= b[2] and b[0] <= a[2] and a[1] <= b[3] and b[1] <= a[3] and fits(union):
+                    boxes[i], merged = (boxes[i][0] + boxes.pop(j)[0], union), True
+                    break
+            if merged:
+                break
+    return {'-'.join(sorted(names, key=lambda k: HARBOURS[k][0])): box for names, box in boxes}
+
+
+def harbour_detail(key, output, features, detail_bbox, scene_bbox):
+    """z17 mosaics around the harbours outside the detail mosaic -> output/<name>/{texture.jpg,manifest.json} + index.json."""
+    cache = output / 'tiles' / '17'
+    cache.mkdir(parents=True, exist_ok=True)
+    mosaics = []
+    for name, bbox in harbour_boxes(features, detail_bbox, scene_bbox).items():
+        (x0, y0, x1, y1), _ = coverage(bbox, 17)
+        jobs = [(x, y) for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)]
+        if len(jobs) > 512:
+            raise ValueError('Harbour mosaic exceeds the bounded tile budget')
+        # ponytail: politeness is 2 parallel requests and the shared tile cache; add a delay if the provider asks for one.
+        metadata = write_mosaic(output / name, bbox, 17, *fetch_all(key, 17, cache, jobs, workers=2))
+        mosaics.append({'name': name, 'harbours': [HARBOURS[k][2] for k in name.split('-')],
+                        'path': f'{name}/texture.jpg', 'manifest': f'{name}/manifest.json',
+                        **{k: metadata[k] for k in ('bbox_lon_lat', 'requested_bbox_lon_lat', 'bounds', 'width', 'height',
+                                                    'tile_count', 'failed_tile_count', 'sha256')}})
+    index = {'source': 'VWorld Satellite WMTS', 'attribution': '공간정보 오픈플랫폼(브이월드) / 국토교통부', 'zoom': 17, 'crs': 'EPSG:3857',
+             'buffer_m': 400, 'khoa_categories': sorted(HARBOUR_CATS), 'excluded_detail_bbox_lon_lat': detail_bbox,
+             'selection': 'KHOA 2026 coastline (data.go.kr 15083948) harbour lines per nearest HARBOURS centre; harbours wholly inside '
+                          'the Sinchang detail mosaic skipped; 400 m boxes clipped to the scene bbox and merged while overlapping and <= 4096 px.',
+             'mosaics': mosaics, 'tile_count': sum(m['tile_count'] for m in mosaics),
+             'failed_tile_count': sum(m['failed_tile_count'] for m in mosaics)}
+    (output / 'index.json').write_text(json.dumps(index, ensure_ascii=False, indent=2) + '\n')
+    return index
 
 
 def roof_atlas(bboxes, tiles, width=4096):
@@ -185,6 +295,7 @@ def main():
     parser.add_argument('--self-test', action='store_true')
     parser.add_argument('--roofs', action='store_true', help='z19 roof atlas for the Sinchang footprints')
     parser.add_argument('--terrain-detail', action='store_true', help='z17 terrain mosaic for the Sinchang site AOI')
+    parser.add_argument('--harbour-detail', action='store_true', help='z17 mosaics around the harbours outside the Sinchang mosaic')
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     if args.self_test:
@@ -237,11 +348,60 @@ def main():
         assert bounds[0] < merc[0] < merc[2] < bounds[2] and bounds[1] < merc[1] < merc[3] < bounds[3]
         assert image.getpixel((5, 5)) == image.getpixel(tuple(v - 5 for v in image.size)) == (128, 128, 128)
         assert image.getpixel((256 + 5, 5)) != (128, 128, 128)
-        print('PASS tile order, geographic coverage, invalid-image rejection, roof crop/packing and failed-tile exclusion, z17 site mosaic')
+        # Harbour z17 boxes: 400 m around each harbour's lines; lines inside the Sinchang mosaic, sea walls (15) and natural
+        # coast are ignored; overlapping boxes merge only while the mosaic fits 4096 px; boxes are clipped to the scene.
+        line = lambda cat, *points: {'properties': {'CAT_COA': cat}, 'geometry': {'type': 'LineString', 'coordinates': [list(p) for p in points]}}
+        scene_bbox = [126.14486111111111, 33.30986111111111, 126.40013888888889, 33.43513888888889]
+        feats = [line(11, (126.2560, 33.4170), (126.2580, 33.4180)), line(14, (126.2630, 33.4250), (126.2640, 33.4255)),  # hallim + suwon
+                 line(11, (126.2003, 33.3662), (126.2010, 33.3665)),  # panpo, alone
+                 line(14, (126.1790, 33.3480), (126.1800, 33.3490)),  # sinchang: inside the detail mosaic
+                 line(15, (126.3000, 33.4300), (126.3100, 33.4310)), line(54, (126.3500, 33.4300), (126.3600, 33.4310)),
+                 line(16, (126.2720, 33.4345), (126.2730, 33.4350))]  # north_edge: box clipped at the scene's north edge
+        boxes = harbour_boxes(feats, aoi, scene_bbox)
+        assert set(boxes) == {'hallim-suwon', 'panpo', 'north_edge'}, boxes
+        w, s, e, n = boxes['panpo']
+        assert math.isclose(n - 33.3665, 400 / 111320) and math.isclose((126.2003 - w) * 111320 * math.cos(math.radians(33.36635)), 400, rel_tol=1e-3)
+        w, s, e, n = boxes['hallim-suwon']
+        assert boxes['north_edge'][3] == scene_bbox[3] and w < 126.2560 and 126.2640 < e and s < 33.4170 and 33.4255 < n
+        chain = [line(11, (126.2433, 33.3986), (126.2433, 33.3990)), line(11, (126.2502, 33.4042), (126.2502, 33.4046)),
+                 line(11, (126.2578, 33.4174), (126.2578, 33.4178)), line(11, (126.2633, 33.4253), (126.2633, 33.4257))]
+        chained = harbour_boxes(chain, aoi, scene_bbox)
+        assert len(chained) >= 2 and all(max(x1 - x0 + 1, y1 - y0 + 1) * 256 <= 4096 for (x0, y0, x1, y1), _ in (coverage(b, 17) for b in chained.values()))
+        # Offline harbour mosaic from a pre-filled cache (one failed tile): imagery-detail manifest schema plus an index.
+        with TemporaryDirectory() as output:
+            output = Path(output)
+            (x0, y0, x1, y1), _ = coverage(boxes['panpo'], 17)
+            (output / 'tiles' / '17').mkdir(parents=True)
+            for x in range(x0, x1 + 1):
+                for y in range(y0, y1 + 1):
+                    image = Image.new('RGB', (256, 256), (x % 200, y % 200, 90))
+                    image.putpixel((0, 0), (255, 255, 255))
+                    image.save(output / 'tiles' / '17' / f'{x}-{y}.jpg')
+            (output / 'tiles' / '17' / f'{x0}-{y0}.jpg').write_bytes(b'<Error>invalid key</Error>')
+            index = harbour_detail('unused', output, feats[2:3], aoi, scene_bbox)
+            manifest = json.loads((output / 'panpo' / 'manifest.json').read_text())
+            assert set(manifest) == {'source', 'attribution', 'documentation', 'source_url_template', 'crs', 'bounds', 'bbox_lon_lat',
+                                     'requested_bbox_lon_lat', 'width', 'height', 'zoom', 'tile_count', 'failed_tile_count', 'acquired_at',
+                                     'capture_date', 'notice', 'processing', 'sha256', 'tiles', 'failed_tiles'}, set(manifest)
+            assert manifest['zoom'] == 17 and manifest['requested_bbox_lon_lat'] == boxes['panpo'] and manifest['failed_tile_count'] == 1
+            assert manifest['tile_count'] == (x1 - x0 + 1) * (y1 - y0 + 1) - 1 and manifest['sha256'] == hashlib.sha256((output / 'panpo' / 'texture.jpg').read_bytes()).hexdigest()
+            assert json.loads((output / 'index.json').read_text()) == index and [m['name'] for m in index['mosaics']] == ['panpo']
+            assert index['mosaics'][0]['harbours'] == ['판포포구'] and index['tile_count'] == manifest['tile_count'] and index['failed_tile_count'] == 1
+            assert 'unused' not in (output / 'index.json').read_text() + (output / 'panpo' / 'manifest.json').read_text()
+        print('PASS tile order, geographic coverage, invalid-image rejection, roof crop/packing and failed-tile exclusion, z17 site mosaic, '
+              'harbour boxes (skip/merge/4096 px split/clip) and offline harbour mosaic + index')
         return
     key = read_key(Path('.env'))
     if args.roofs:
         roofs(key, args.output or Path('var/rendering/roofs'))
+        return
+    if args.harbour_detail:
+        index = harbour_detail(key, args.output or Path('var/rendering/imagery-harbours'),
+                               json.loads(Path('var/survey/harbour/khoa_coast_bbox.geojson').read_text())['features'],
+                               json.loads(Path('var/rendering/imagery-detail/manifest.json').read_text())['bbox_lon_lat'],
+                               json.loads(Path('var/rendering/local/manifest.json').read_text())['terrain']['bbox_lon_lat'])
+        print(json.dumps({'status': 'PASS', 'tiles': index['tile_count'], 'failed_tiles': index['failed_tile_count'],
+                          'mosaics': {m['name']: [m['width'], m['height'], m['tile_count'], m['failed_tile_count']] for m in index['mosaics']}}))
         return
     detail = args.terrain_detail
     args.output = args.output or Path('var/rendering/imagery-detail' if detail else 'var/rendering/imagery')
@@ -260,25 +420,9 @@ def main():
     tiles, records, failed = fetch_all(key, zoom, cache, jobs)
     if failed and not detail:
         raise RuntimeError(failed[0]['error'])  # the whole-area base has no fallback imagery
-    image, bounds = mosaic(bbox, zoom, tiles)
-    path = args.output / 'texture.jpg'
-    image.save(path, quality=94, subsampling=0)
-    w, s, e, n = bounds
-    lonlat = [math.degrees(w / 6378137), math.degrees(math.atan(math.sinh(s / 6378137))),
-              math.degrees(e / 6378137), math.degrees(math.atan(math.sinh(n / 6378137)))]
-    metadata = {'source': 'VWorld Satellite WMTS', 'attribution': '공간정보 오픈플랫폼(브이월드) / 국토교통부',
-                'documentation': 'https://www.vworld.kr/dev/v4dv_wmtsguide_s001.do',
-                'source_url_template': 'https://api.vworld.kr/req/wmts/1.0.0/{key}/Satellite/{z}/{y}/{x}.jpeg',
-                'crs': 'EPSG:3857', 'bounds': bounds, 'bbox_lon_lat': lonlat, 'requested_bbox_lon_lat': bbox,
-                'width': image.width, 'height': image.height, 'zoom': zoom, 'tile_count': len(records),
-                'failed_tile_count': len(failed),
-                'acquired_at': datetime.now(timezone.utc).isoformat(), 'capture_date': None,
-                'notice': 'Actual provider imagery; acquisition date is not photography date. Provider terms apply; local preview cache, not an open-data redistribution license.',
-                'processing': 'North-up WMTS mosaic; original tile pixels retained, JPEG encoded at quality94. No synthetic fill; failed tiles stay neutral grey, are listed in failed_tiles and are never mapped.',
-                'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'tiles': records, 'failed_tiles': failed}
-    (args.output / 'manifest.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + '\n')
-    print(json.dumps({'status': 'PASS', 'tiles': len(records), 'failed_tiles': len(failed), 'size': image.size, 'sha256': metadata['sha256']}))
-
+    metadata = write_mosaic(args.output, bbox, zoom, tiles, records, failed)
+    print(json.dumps({'status': 'PASS', 'tiles': len(records), 'failed_tiles': len(failed), 'size': [metadata['width'], metadata['height']],
+                      'sha256': metadata['sha256']}))
 
 if __name__ == '__main__':
     main()
