@@ -478,7 +478,9 @@ async function showGeneration() {
     card.dataset.note = [latest ? '원천 최신 1시간값' : '선택 시각이 속한 1시간값', `${kstHour(obs.interval_start)} KST 원천 라벨`,
       Date.now() - observed > 48 * 3600000 ? '과거 실적 · 실시간 계측 아님' : observed > Date.now() ? '미래 시각 · 원천 확인 필요' : '',
       obs.gen_kwh === null ? '발전량 결측' : '', `품질: ${flags.join(', ') || '표시 없음'}`, farm.plant?.data_quality_note].filter(Boolean).join(' · ');
-    generation(obs.gen_kwh === null ? '—' : `${obs.gen_kwh.toLocaleString('ko-KR')} kWh`, card.dataset.note);
+    const kwh = obs.gen_kwh === null ? '—' : `${obs.gen_kwh.toLocaleString('ko-KR')} kWh`;
+    // An old "latest" value must not read as current output: put its hour in the headline itself.
+    generation(card.dataset.state === 'historical' ? `${kwh} · ${kstHour(obs.interval_start)} 과거값` : kwh, card.dataset.note);
   } catch { if (mine === genSeq) { card.dataset.state = 'disconnected'; generation(previousValue, [previousNote, '발전량 연결 지연 · 시설을 다시 선택하면 재시도합니다'].filter(Boolean).join(' · ')); } }
 }
 function stationDistance(coordinates, station) {
