@@ -1,0 +1,64 @@
+{
+  "started_at": "2026-09-30T05:35:17.995Z",
+  "api_station_count": 43,
+  "pages": [
+    {
+      "width": 1280,
+      "shown": {
+        "station": "한림(779) · 1.35 km",
+        "wind": "최근 관측 · 연결됨 / 최신값 자동 반영",
+        "values": "기온 25.3 °C · 습도 83 % · 이전 60분 강수 0 mm",
+        "weather": "기상 최근 관측 · 위 관측소·시각 기준",
+        "time": "2026. 9. 30. 오후 2:30:00 KST 관측",
+        "note": "",
+        "following": "true",
+        "viewport_width": 1280,
+        "overflow": false
+      },
+      "station_id": 779,
+      "observed_at": "2026-09-30T05:30:00Z",
+      "received_at": "2026-09-30T05:35:22Z",
+      "api_values": [
+        25.3,
+        83,
+        0
+      ],
+      "ws_handshake": true
+    },
+    {
+      "width": 375,
+      "shown": {
+        "station": "한림(779) · 1.35 km",
+        "wind": "최근 관측 · 연결됨 / 최신값 자동 반영",
+        "values": "기온 25.3 °C · 습도 83 % · 이전 60분 강수 0 mm",
+        "weather": "기상 최근 관측 · 위 관측소·시각 기준",
+        "time": "2026. 9. 30. 오후 2:30:00 KST 관측",
+        "note": "",
+        "following": "true",
+        "viewport_width": 375,
+        "overflow": false
+      },
+      "station_id": 779,
+      "observed_at": "2026-09-30T05:30:00Z",
+      "received_at": "2026-09-30T05:35:22Z",
+      "api_values": [
+        25.3,
+        83,
+        0
+      ],
+      "ws_handshake": true
+    }
+  ],
+  "mock_checks": [
+    "negative temperature, humidity 100, zero precipitation",
+    "independent null field preserves other weather and wind",
+    "weather-only observation displays without driving turbine rotation",
+    "old observation is visibly stale",
+    "closed socket is visibly stale",
+    "new valid frame restores fresh display"
+  ],
+  "weather_http_gets": [],
+  "runtime_errors": [],
+  "status": "PASS",
+  "finished_at": "2026-09-30T05:37:10.472Z"
+}

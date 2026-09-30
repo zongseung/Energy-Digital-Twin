@@ -1,0 +1,114 @@
+{
+  "url": "http://localhost:8080/",
+  "width": 1280,
+  "height": 900,
+  "at": "2026-09-30T08:36:05.481Z",
+  "errors": [],
+  "checks": [
+    {
+      "scenario": "initial full map without selection",
+      "screenshot": ".omo/evidence/map-first/1280-initial.png"
+    },
+    {
+      "scenario": "selection shows honest state and measured weather",
+      "screenshot": ".omo/evidence/map-first/1280-detail.png"
+    },
+    {
+      "scenario": "weather tool and unavailable irradiance",
+      "screenshot": ".omo/evidence/map-first/1280-weather.png"
+    },
+    {
+      "scenario": "layer tool independent of detail",
+      "screenshot": ".omo/evidence/map-first/1280-layers.png"
+    },
+    {
+      "scenario": "disabled layer removes marker selection",
+      "screenshot": ".omo/evidence/map-first/1280-wind-hidden.png"
+    },
+    {
+      "scenario": "real map marker click opens facility details, including overlapping candidates",
+      "screenshot": ".omo/evidence/map-first/1280-map-click.png"
+    },
+    {
+      "scenario": "search empty/reset and keyboard selection/Escape focus return",
+      "screenshot": ".omo/evidence/map-first/1280-keyboard.png"
+    },
+    {
+      "scenario": "explicit close-up and actual mesh raycast click open details",
+      "screenshot": ".omo/evidence/map-first/1280-mesh-click.png"
+    },
+    {
+      "scenario": "real wheel, pan and rotate without accidental selection",
+      "screenshot": ".omo/evidence/map-first/1280-navigation.png"
+    },
+    {
+      "scenario": "panel wheel scrolls information and preserves camera",
+      "screenshot": ".omo/evidence/map-first/1280-panel-scroll.png"
+    },
+    {
+      "scenario": "regional history preserves current weather scope",
+      "screenshot": ".omo/evidence/map-first/1280-analysis.png"
+    },
+    {
+      "scenario": "reduced motion and idle frame stop",
+      "screenshot": ".omo/evidence/map-first/1280-final.png"
+    },
+    {
+      "scenario": "WebGL interruption retains facility details and weather",
+      "screenshot": ".omo/evidence/map-first/1280-context-lost.png"
+    },
+    {
+      "scenario": "failed initial 3D asset keeps source facility catalog and live weather",
+      "screenshot": ".omo/evidence/map-first/1280-load-failed.png"
+    }
+  ],
+  "browserErrors": [
+    "[4148088:4148119:0930/173611.382630:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT\n"
+  ],
+  "layout": {
+    "viewport": [
+      1280,
+      900
+    ],
+    "map": {
+      "x": 0,
+      "y": 56,
+      "width": 1280,
+      "height": 816,
+      "top": 56,
+      "right": 1280,
+      "bottom": 872,
+      "left": 0
+    },
+    "overflow": false,
+    "panelHidden": true,
+    "selection": null
+  },
+  "gpu": "ANGLE (NVIDIA, Vulkan 1.3.242 (NVIDIA NVIDIA RTX A6000 (0x00002230)), NVIDIA)",
+  "detail": {
+    "name": "탐라 해상풍력 01",
+    "state": "확인 불가",
+    "power": "—",
+    "panel": {
+      "x": 904,
+      "y": 72,
+      "width": 360,
+      "height": 784,
+      "top": 72,
+      "right": 1264,
+      "bottom": 856,
+      "left": 904
+    },
+    "tool": "detail"
+  },
+  "lastPose": "translate(959.44px, 104.06px)|translate(635.49px, 127.95px)|translate(1244.77px, 105.38px)|translate(552.43px, 132.90px)|translate(552.24px, 132.87px)|translate(562.89px, 132.12px)|translate(561.65px, 132.12px)|translate(671.80px, 387.63px)|translate(541.48px, 236.09px)|translate(496.59px, 196.90px)|translate(468.94px, 178.57px)|translate(410.90px, 168.17px)|translate(451.10px, 160.84px)|translate(440.96px, 155.85px)|translate(439.71px, 152.21px)|translate(434.90px, 149.42px)|translate(424.31px, 147.20px)|translate(556.09px, 133.14px)|translate(583.63px, 132.72px)|translate(450.39px, 135.79px)|translate(733.25px, 128.70px)",
+  "action": "right rotate",
+  "idleDrawCalls": {
+    "before": 288845,
+    "after": 288845
+  },
+  "expectedFailureErrors": [
+    "Local scene failed TypeError: Failed to fetch\n    at FileLoader.load (http://localhost:8080/vendor/build/three.core.js:44044:3)\n    at GLTFLoader.load (http://localhost:8080/vendor/examples/jsm/loaders/GLTFLoader.js:305:10)\n    at http://localhost:8080/vendor/build/three.core.js:43782:10\n    at new Promise (<anonymous>)\n    at GLTFLoader.loadAsync (http://localhost:8080/vendor/build/three.core.js:43780:10)\n    at loadGrid (http://localhost:8080/twin/grid.js?v=map-first-20260930:341:61)\n    at async startScene (http://localhost:8080/twin/app.js?v=map-first-20260930:228:10)"
+  ],
+  "status": "PASS"
+}

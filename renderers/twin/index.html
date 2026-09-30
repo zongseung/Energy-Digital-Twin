@@ -2,76 +2,121 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>탐라–한림 · 실제 영상과 지형 3D</title>
-  <link rel="stylesheet" href="/site/style.css"><link rel="stylesheet" href="/twin/style.css">
+  <meta name="description" content="탐라–한림의 실제 지형과 에너지 시설을 탐색하는 제주 에너지 디지털 트윈. 시설 정보, 인근 기상과 제주 전체 수급을 확인합니다.">
+  <title>탐라–한림 · 에너지 지도</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2318191d'/%3E%3Cpath d='M17 4 8 18h7l-1 10 10-15h-8z' fill='%2372cbd5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/site/style.css"><link rel="stylesheet" href="/twin/style.css?v=map-first-20260930">
   <script type="importmap">{"imports":{"three":"/vendor/build/three.module.js","three/addons/":"/vendor/examples/jsm/"}}</script>
-  <script type="module" src="/twin/app.js"></script>
+  <script type="module" src="/twin/app.js?v=map-first-20260930"></script>
 </head>
 <body>
-  <header class="topbar"><h1>탐라–한림 <span>3D</span></h1><span class="estimate">실제 영상·고도 / 설비 외형 추정</span><a href="/omniverse/local-array.png" target="_blank" rel="noreferrer">서버 GPU 렌더 ↗</a></header>
+  <a class="skip-link" href="#tool-facilities">시설 목록으로 이동</a>
+  <header class="topbar">
+    <h1>탐라–한림 <span>에너지 지도</span></h1>
+    <span class="estimate">실제 지형 · 설비 외형 추정</span>
+    <span id="view-mode" class="view-mode">최신 보기</span>
+    <button data-tool="help" aria-controls="info-panel" aria-expanded="false">도움말</button>
+  </header>
   <main class="workspace">
-    <section class="map-region" aria-label="제주 전력시설 3D 장면">
-      <div id="viewport"></div>
-      <div class="map-controls" aria-label="시점 조작">
-        <button id="overview" disabled>구역 전체</button><button id="wind-view" disabled>풍력·해안</button><button id="terrain-relief" disabled>고도·지형</button><button id="buildings-view" disabled>마을·영상</button><button id="sea-view" disabled>바다</button><button id="terrain-view" disabled>한림 선로</button><button id="pv-view" disabled>태양광</button><button id="inspect" disabled>선택 시설</button>
-        <button id="rotate" disabled>시점 회전</button><button id="zoom-in" disabled aria-label="3D 확대">＋</button><button id="zoom-out" disabled aria-label="3D 축소">−</button>
+    <section class="map-region" aria-label="제주 전력시설 3D 지도">
+      <div id="viewport" tabindex="0" aria-label="3D 지도. 시설 목록과 시점 버튼으로도 조작할 수 있습니다."></div>
+      <div id="map-markers" aria-label="지도 위 시설"></div>
+      <nav class="tool-rail" aria-label="지도 정보 도구">
+        <button id="tool-facilities" data-tool="facilities" aria-controls="info-panel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V8l6-4v17M9 21V11l6-4v14M15 21V4h6v17M3 21h18M6 9v2m0 3v2m6-3v2m6-8v2m0 3v2m0 3v2"/></svg><span>시설</span></button>
+        <button data-tool="layers" aria-controls="info-panel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 8 9-5 9 5-9 5-9-5Zm0 5 9 5 9-5M3 18l9 5 9-5"/></svg><span>레이어</span></button>
+        <button data-tool="weather" aria-controls="info-panel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h13a3 3 0 1 0-3-3M3 13h16a2 2 0 1 1-2 2M3 17h8a3 3 0 1 1-3 3"/></svg><span>기상</span></button>
+        <button data-tool="analysis" aria-controls="info-panel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3v18h17M8 17v-5m5 5V6m5 11v-8"/></svg><span>지역 분석</span></button>
+      </nav>
+      <div class="map-controls" aria-label="지도 조작">
+        <button id="north" disabled aria-label="북쪽 정렬">N<span id="compass-arrow" aria-hidden="true">↑</span></button>
+        <button id="zoom-in" disabled aria-label="지도 확대">＋</button>
+        <button id="zoom-out" disabled aria-label="지도 축소">−</button>
+        <button id="overview" disabled aria-label="구역 전체 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span class="sr-only">전체 보기</span></button>
+        <details id="view-menu"><summary>시점</summary><div class="view-options">
+          <button id="wind-view" disabled>풍력·해안</button><button id="terrain-relief" disabled>고도·지형</button><button id="buildings-view" disabled>마을·영상</button><button id="sea-view" disabled>바다</button><button id="terrain-view" disabled>한림 선로</button><button id="pv-view" disabled>태양광</button><button id="rotate" disabled>시점 회전</button>
+        </div></details>
       </div>
-      <p id="map-status" role="status">실제 영상·지형과 시설 불러오는 중…</p>
-      <div class="scene-caption"><strong id="scene-title">탐라–한림 통합 장면</strong><span>드래그: 회전 · 휠: 확대 · 시설 클릭: 선택</span><span id="scene-note">영상: VWorld · 고도: Copernicus DSM / 개별 시설 계측 미연결</span></div>
+      <p id="map-status" role="status">지형과 시설을 불러오는 중…</p>
+      <div class="map-caption"><strong id="scene-title">탐라–한림 통합 구역</strong><span id="scene-note">시설을 클릭해 정보를 확인하세요</span></div>
+      <details class="map-legend"><summary>지도 범례</summary><div><span class="legend wind">풍력</span><span class="legend pv">태양광</span><span class="legend station">변전소</span><span class="legend transmission">송전</span><p class="note muted">시설 종류 색 · 개별 가동 계측 미연결</p></div></details>
+      <div id="pick-candidates" class="pick-candidates" hidden><p>시설 선택</p><div id="pick-list"></div><button id="pick-close">닫기</button></div>
     </section>
-    <aside class="sidebar" aria-label="시설 정보">
-      <p class="eyebrow">JEJU · ENERGY INFRASTRUCTURE</p>
-      <section class="wind-observation" aria-label="인근 관측소의 실제 바람">
-        <h2 id="wind-station">제주 관측 바람</h2>
-        <p id="wind-selection" class="muted note">시설별 가까운 유효 관측소 선택</p>
-        <p class="wind-values"><strong id="wind-speed">—</strong><span id="wind-direction">—</span></p>
-        <p id="wind-status" role="status">관측 불러오는 중…</p>
-        <p id="wind-time" class="muted note">관측 시각 —</p>
-        <p id="wind-nearest-note" class="muted note"></p>
-        <label class="layer-toggle"><input id="wind-follow" type="checkbox" checked disabled>시설별 관측풍향으로 방향 시연</label>
-        <p id="wind-follow-status" class="muted note">관측 대기 · 실제 터빈 방향·RPM 계측 아님</p>
-        <p class="muted note"><a href="https://www.weather.go.kr/w/observation/land/aws-obs.do" target="_blank" rel="noreferrer">기상청 제주 관측소</a> · 10분 평균 · 풍향 16방위 · 지상 관측, QC 상태 미제공</p>
-        <details class="wind-stations"><summary id="wind-station-count">제주 전체 관측소 불러오는 중</summary><p class="muted note">선택 시설에서 가까운 순 · 관측 시각 KST</p><div class="wind-table-scroll" tabindex="0" role="region" aria-label="제주 전체 관측소 바람"><table><thead><tr><th scope="col">관측소 / 거리</th><th scope="col">바람</th><th scope="col">관측</th></tr></thead><tbody id="wind-stations"></tbody></table></div></details>
-      </section>
-      <fieldset id="grid-layers"><legend>같은 장면의 표시 레이어</legend>
-        <label class="layer-toggle"><input id="layer-wind" type="checkbox" checked disabled><span class="legend wind">풍력 10기</span></label>
-        <label class="layer-toggle"><input id="layer-transmission" type="checkbox" checked disabled><span class="legend transmission">송전선·케이블</span></label>
-        <label class="layer-toggle"><input id="layer-substation" type="checkbox" checked disabled><span class="legend station">구역 내 변전소</span></label>
-        <label class="layer-toggle"><input id="layer-pv" type="checkbox" checked disabled><span class="legend pv">태양광 예시 3곳</span></label>
-        <label class="layer-toggle"><input id="layer-terrain" type="checkbox" checked disabled>실제 영상·지형</label>
-        <label class="layer-toggle"><input id="layer-roads" type="checkbox" checked disabled><span>도로 · 경로·폭 원천 / 포장·차선 추정</span></label>
-        <label class="layer-toggle"><input id="layer-vegetation" type="checkbox" checked disabled><span>식생 · 구역 실제(토지피복 2023) / 개별 나무 추정</span></label>
-        <label class="layer-toggle"><input id="layer-groundcover" type="checkbox" checked disabled><span>밭·논·초지·밭담 · 구역 실제 / 작물·풀·담 위치 추정(근거리)</span></label>
-        <label class="layer-toggle"><input id="layer-buildings" type="checkbox" checked disabled><span>건물 · 위치·윤곽·지붕영상 실제 / 형태·외벽·일부 높이 추정</span><span id="buildings-count" hidden></span></label>
-        <p class="muted note">신창 건물 2,661동. 위치·윤곽은 VWorld 건물정보, 지붕 색은 VWorld z19 항공영상(없으면 회색)입니다. 박공·평지붕 난간, 외벽·창, 높이 일부는 추정입니다: 원천 높이 623동 · 층수×3 m 887동 · 속성 없음 1층 3.5 m 1,151동. 건물을 누르면 근거가 보입니다.</p>
-        <label class="layer-toggle"><input id="layer-sea" type="checkbox" checked disabled>바다 · 기존 영상</label>
-      </fieldset>
-      <h2 id="selected-name">시설 선택</h2><p id="selection-status" role="status">원천 자료를 불러오는 중</p>
-      <dl id="facility-detail"></dl>
-      <div id="wind-estimate" hidden><p><strong>풍속 기반 추정 가능 출력</strong> · <span id="wind-estimate-power">—</span> · 시각화 회전 <span id="wind-estimate-rpm">—</span></p><p id="wind-estimate-status" class="muted note">최근 관측 대기</p></div>
-      <div id="rotor-demo-control"><label class="layer-toggle"><input id="rotor-demo" type="checkbox" disabled>인근 지상풍 기반 회전 시연</label><p class="muted note">최근 관측이 있고 추정 회전이 0보다 클 때만 움직입니다. 실제 터빈 RPM·운전 상태가 아닙니다.</p></div>
-      <details id="grid-note" class="sources"><summary>데이터·추정 범위와 GPU 결과</summary><p>탐라–한림 일부 실제 영상과 DSM 위에 풍력·PV·변전소·송전 구조를 함께 배치했습니다. 시점 버튼은 같은 장면 안에서 이동합니다. 범위 밖 시설과 경로는 표시하지 않습니다.</p><p>영상: 공간정보 오픈플랫폼(브이월드) Satellite. 촬영 기준일은 미확인입니다. 고도: Copernicus DSM / EGM2008, 약30m 원천을 약60m 간격으로 표시합니다. 건물·식생을 포함하며 세부 측량 자료는 아닙니다.</p><p>시설의 위치·경로는 원천 GIS입니다. 풍력 부품·철탑·전선 처짐·변전소 배치·PV 패널 배열은 추정 형상입니다. PV 등록 용량은 실측 발전량이 아니며, 동일 좌표의 다른 등록 기록이 있을 수 있습니다. 전기적 연결·흐름은 미확인입니다.</p><p>풍속 기반 추정은 가까운 기상청 지상 관측소의 10분 평균을 그대로 넣은 예시입니다. 허브 높이 풍속·실제 RPM·터빈별 출력이나 운전 상태가 아닙니다. <a href="https://www.visiongroup21.eu/en/pdf/tech6c.pdf" target="_blank" rel="noreferrer">구형 Doosan WinDS3000/91 자료</a>의 3/13/25 m/s 및 15.7 RPM을 잠정 가정하고, <a href="https://www.energy.gov/cmei/systems/windexchange/small-wind-guidebook" target="_blank" rel="noreferrer">미 에너지부 풍력 안내</a>의 풍속 세제곱 관계로 3 MW까지 예시 출력을 계산합니다. 실제 제조사 출력곡선이나 탐라 현장 설정으로 확인된 값이 아닙니다. 정격 이하 회전은 일정한 날개끝 속도비 가정의 시각화이며, 0 RPM 표시는 실제 블레이드 정지를 증명하지 않습니다.</p><p>대화형 장면은 접속 기기의 WebGL로 표시합니다. 아래 PNG는 건물 비교 모형을 추가하기 전 통합 장면을 서버 GPU 1의 Omniverse RTX로 렌더한 정지 화면입니다. 실시간 스트리밍은 아닙니다.</p><p>GPU 렌더: <a href="/omniverse/local-array.png">풍력·해안</a> · <a href="/omniverse/local-overview.png">통합 구역</a> · <a href="/omniverse/local-terrain.png">고도·지형</a> · <a href="/omniverse/local-pv.png">태양광</a></p><p><a href="/local/manifest.json">원천·좌표·추정 기록</a> · <a href="/local/CREDITS.txt">출처·이용 조건</a></p></details>
-      <details class="inspector" open><summary>구역 내 시설 <span id="facility-count"></span></summary><ul id="facilities"></ul></details>
+    <aside id="info-panel" class="info-panel" aria-label="지도 정보" hidden>
+      <button id="sheet-toggle" class="sheet-toggle" aria-expanded="false">펼치기</button>
+      <header class="panel-heading"><h2 id="panel-title" tabindex="-1">시설 정보</h2><button id="panel-close" aria-label="정보 패널 닫기">×</button></header>
+      <button id="panel-back" hidden>선택 시설 정보로 돌아가기</button>
+      <div id="panel-body" class="panel-body">
+        <section data-panel="detail" hidden>
+          <p id="selection-status" class="note muted" role="status"></p><h3 id="selected-name">시설 선택</h3>
+          <section id="operation-summary" class="operation-summary" aria-label="개별 시설 실측 상태"><p class="note muted">실측 가동 상태</p><strong id="operation-state">확인 불가</strong><dl class="operation-metrics"><div><dt>실측 출력</dt><dd id="operation-power">—</dd></div><div><dt>계측 시각</dt><dd>—</dd></div></dl><p class="note muted">개별 계측 미연결 · 시연 회전과 다른 정보입니다</p></section>
+          <button id="inspect" disabled>가까이 보기</button>
+          <div id="detail-weather"></div>
+          <div id="wind-estimate" hidden><p class="note muted">인근 풍속 기반 모델</p><p><strong>추정 가능 출력</strong> <span id="wind-estimate-power">—</span></p><p class="note">회전 시연 <span id="wind-estimate-rpm">—</span></p><p id="wind-estimate-status" class="note muted">최근 관측 대기</p></div>
+          <div id="rotor-demo-control"><label class="layer-toggle"><input id="rotor-demo" type="checkbox" disabled>인근 지상풍 기반 회전 시연</label><p class="note muted">실제 터빈 RPM·운전 상태가 아닙니다.</p></div>
+          <details class="sources"><summary>시설 제원·형상 근거</summary><dl id="facility-detail"></dl></details>
+        </section>
+        <section data-panel="facilities" hidden>
+          <p class="muted">현재 구역의 시설을 선택하세요.</p>
+          <label for="facility-search">시설 검색</label><input id="facility-search" type="search" placeholder="시설명 또는 ID" autocomplete="off">
+          <label for="facility-filter">시설 종류</label><select id="facility-filter"><option value="">전체 시설</option value="wind">풍력</option><option value="pv">태양광</option><option value="substation">변전소</option><option value="transmission">송전·케이블</option></select>
+          <p id="facility-count" class="note muted"></p><ul id="facilities"></ul><p id="facility-empty" hidden>검색 결과가 없습니다. 검색어나 종류를 바꿔주세요.</p><button id="facility-reset" hidden>검색·필터 초기화</button>
+        </section>
+        <section data-panel="layers" hidden>
+          <fieldset id="grid-layers"><legend>에너지 시설</legend>
+            <label class="layer-toggle"><input id="layer-wind" type="checkbox" checked disabled><span class="legend wind">풍력 10기</span></label>
+            <label class="layer-toggle"><input id="layer-transmission" type="checkbox" checked disabled><span class="legend transmission">송전선·케이블</span></label>
+            <label class="layer-toggle"><input id="layer-substation" type="checkbox" checked disabled><span class="legend station">변전소</span></label>
+            <label class="layer-toggle"><input id="layer-pv" type="checkbox" checked disabled><span class="legend pv">태양광 예시 3곳</span></label>
+          </fieldset>
+          <fieldset class="landscape-layers"><legend>지형과 주변 환경</legend>
+            <label class="layer-toggle"><input id="layer-terrain" type="checkbox" checked disabled>실제 영상·지형</label>
+            <label class="layer-toggle"><input id="layer-buildings" type="checkbox" checked disabled>건물<span id="buildings-count" hidden></span></label>
+            <label class="layer-toggle"><input id="layer-roads" type="checkbox" checked disabled>도로</label>
+            <label class="layer-toggle"><input id="layer-vegetation" type="checkbox" checked disabled>식생</label>
+            <label class="layer-toggle"><input id="layer-groundcover" type="checkbox" checked disabled>밭·논·초지·밭담</label>
+            <label class="layer-toggle"><input id="layer-sea" type="checkbox" checked disabled>바다</label>
+          </fieldset>
+          <details class="sources"><summary>환경 형상과 원천 자료</summary><p>건물 위치·윤곽·지붕영상은 원천 자료이며, 지붕 형태·외벽·일부 높이는 추정입니다. 신창 건물 2,661동: 원천 높이 623동 · 층수×3 m 887동 · 1층 3.5 m 가정 1,151동.</p><p>도로 경로·폭과 식생·토지피복 구역은 원천 자료입니다. 포장·차선·개별 나무·작물·밭담 위치는 추정입니다. 바다는 기존 영상이며 조위·수심은 미반영입니다.</p></details>
+        </section>
+        <section data-panel="weather" hidden><div id="weather-home">
+          <section class="wind-observation" aria-label="인근 관측소의 실제 바람과 기상">
+            <p id="weather-scope" class="note muted">현재 기상 · 시설 현장 계측 아님</p>
+            <h3 id="wind-station">제주 관측 기상</h3><p id="wind-selection" class="note muted">기준: 구역 기준점</p>
+            <div class="weather-grid"><div class="weather-wide"><span class="note muted">풍속 · 10분 평균</span><p class="wind-values"><strong id="wind-speed">—</strong><span id="wind-direction">—</span></p></div>
+              <div><span class="note muted">기온</span><strong id="weather-temperature">—</strong></div><div><span class="note muted">습도</span><strong id="weather-humidity">—</strong></div>
+              <div><span class="note muted">최근 1시간 강수</span><strong id="weather-rain">—</strong></div><div><span class="note muted">일사량</span><strong>—</strong><span class="note muted">일사 관측 미연결</span></div>
+            </div>
+            <p id="weather-values" class="sr-only">기온 — · 습도 — · 이전 60분 강수 —</p>
+            <p id="wind-status" class="note" role="status">관측 불러오는 중…</p><p id="weather-status" class="note" role="status">기상 관측 불러오는 중…</p><p id="wind-time" class="note muted">관측 시각 —</p>
+            <p id="weather-irradiance-note" class="note muted">일사 관측 미연결 · 현재 AWS 원천 미제공</p><p id="wind-nearest-note" class="note muted"></p>
+            <details class="wind-stations"><summary id="wind-station-count">제주 전체 관측소 불러오는 중</summary><p class="note muted">기준 위치에서 가까운 순 · 관측 시각 KST · 표를 좌우로 스크롤할 수 있습니다</p><div class="wind-table-scroll" tabindex="0" role="region" aria-label="제주 전체 관측소 바람과 기상"><table><thead><tr><th scope="col">관측소 / 거리</th><th scope="col">바람</th><th scope="col">기온</th><th scope="col">습도</th><th scope="col">1시간 강수</th><th scope="col">일사량</th><th scope="col">관측</th></tr></thead><tbody id="wind-stations"></tbody></table></div></details>
+            <details class="sources"><summary>관측 근거·풍향 시연</summary><label class="layer-toggle"><input id="wind-follow" type="checkbox" checked disabled>관측 풍향으로 방향 시연</label><p id="wind-follow-status" class="note muted">관측 대기 · 실제 터빈 방향·RPM 계측 아님</p><p class="note muted"><a href="https://www.weather.go.kr/w/observation/land/aws-obs.do" target="_blank" rel="noreferrer">기상청 제주 관측소</a> · 지상 관측, QC 상태 미제공. 이전 60분 강수는 누적량 mm입니다.</p></details>
+          </section>
+        </div></section>
+        <section data-panel="analysis" class="state-panel" hidden>
+          <div class="state-heading"><h3>제주 전체 수급 <span id="state-kind" class="muted">실제 관측 · 최신</span></h3><button id="refresh">다시 읽기</button></div><p id="state-status" class="note" role="status">불러오는 중</p>
+          <div class="time-bar"><fieldset><legend>표시</legend><label><input type="radio" name="mode" value="latest" checked>최신</label><label><input type="radio" name="mode" value="history">과거</label><label><input type="radio" name="mode" value="scenario">시나리오</label></fieldset><div id="time-controls" hidden><input id="history-date" type="date" aria-label="날짜 KST"><input id="history-time" type="range" min="0" max="0" value="0" disabled aria-label="시각 KST"><output id="history-label" for="history-time">—</output><button id="play" type="button" disabled>재생</button></div></div>
+          <form id="scenario-form" hidden>
+            <label>수요 배율<input id="scale-demand" type="number" min="0" step="0.01" value="1.10" required></label><label>풍력 배율<input id="scale-wind" type="number" min="0" step="0.01" value="0.80" required></label><label>태양광 배율<input id="scale-solar" type="number" min="0" step="0.01" value="1.00" required></label>
+            <fieldset id="assumptions" disabled><legend><label><input id="assume" type="checkbox">가정 공급·ESS</label></legend>
+              <label>도내 비재생 G MW<input id="g-mw" type="number" min="0" step="any" required></label><label>HVDC#1 MW<input id="hvdc-1-mw" type="number" step="any" required></label><label>HVDC#2 MW<input id="hvdc-2-mw" type="number" step="any" required></label><label>HVDC#3 MW<input id="hvdc-3-mw" type="number" step="any" required></label><label><input id="hvdc-3-available" type="checkbox" checked>#3 가용</label>
+              <label>ESS MWh<input id="ess-mwh" type="number" min="0.01" step="any" required></label><label>ESS MW<input id="ess-mw" type="number" min="0" step="any" required></label><label>초기 SOC %<input id="ess-soc" type="number" min="0" max="100" step="any" required></label><p class="note muted">사용자 가정 · 가정 효율 0.9 · HVDC 양수 수입/음수 수출</p>
+            </fieldset><button>시뮬레이션 실행</button>
+          </form>
+          <dl id="metrics"><div><dt>수요</dt><dd id="demand_mw">—</dd></div><div><dt>공급 용량</dt><dd id="supply_capacity_mw">—</dd></div><div><dt>풍력</dt><dd id="wind_mw">—</dd></div><div><dt>태양광</dt><dd id="solar_mw">—</dd></div><div><dt>재생에너지 합계</dt><dd id="renewable_total_mw">—</dd></div></dl>
+          <dl id="scenario-metrics" hidden><div><dt>순부하 기준→변경</dt><dd id="sim-net">—</dd></div><div><dt>ESS 전 잔차 (+부족/−잉여)</dt><dd id="sim-before">—</dd></div><div><dt>ESS 충전 / 방전</dt><dd id="sim-ess">—</dd></div><div><dt>SOC</dt><dd id="sim-soc">—</dd></div><div><dt>ESS 후 잔차</dt><dd id="sim-after">—</dd></div></dl><p id="state-source" class="note muted">지역 집계이며 개별 시설의 실측 출력이 아닙니다.</p>
+        </section>
+        <section data-panel="sources" hidden>
+          <h3>자료와 추정 범위</h3><p>현재 탐라–한림 구역의 실제 영상과 DSM 위에 원천 위치의 시설을 함께 배치했습니다. 개별 시설의 운전 계측은 연결되지 않았습니다.</p>
+          <p>영상: VWorld Satellite, 촬영 기준일 미확인. 고도: Copernicus DSM / EGM2008, 약 30m 원천을 약 60m 간격으로 표시하며 세부 측량이 아닙니다.</p><p>풍력 부품·철탑·전선 처짐·변전소 배치·PV 패널 배열은 추정 형상입니다. 등록 용량은 실측 발전량이 아니며 전기적 연결·흐름은 미확인입니다.</p>
+          <p>풍속 모델은 가까운 지상 관측의 10분 평균과 잠정 3/13/25 m/s, 15.7 RPM 가정을 사용합니다. 허브 높이 풍속·실제 RPM·개별 발전량이 아닙니다.</p><p><a href="https://www.visiongroup21.eu/en/pdf/tech6c.pdf" target="_blank" rel="noreferrer">참고 터빈 제원</a> · <a href="https://www.energy.gov/cmei/systems/windexchange/small-wind-guidebook" target="_blank" rel="noreferrer">풍속 세제곱 관계 근거</a></p>
+          <p>서버 GPU RTX 정지 렌더: <a href="/omniverse/local-array.png" target="_blank" rel="noreferrer">풍력·해안</a> · <a href="/omniverse/local-overview.png" target="_blank" rel="noreferrer">구역</a> · <a href="/omniverse/local-terrain.png" target="_blank" rel="noreferrer">지형</a> · <a href="/omniverse/local-pv.png" target="_blank" rel="noreferrer">태양광</a>. 건물 비교 모형 추가 전 화면이며 실시간 스트리밍은 아닙니다.</p>
+          <p><a href="/local/manifest.json" target="_blank" rel="noreferrer">원천·좌표·추정 기록</a> · <a href="/local/CREDITS.txt" target="_blank" rel="noreferrer">출처·이용 조건</a></p>
+        </section>
+        <section data-panel="help" hidden><h3>지도 탐색</h3><dl class="help-list"><dt>이동</dt><dd>왼쪽 드래그 · 터치 한 손가락</dd><dt>확대·축소</dt><dd>커서 위치에서 휠 · 두 손가락 핀치</dd><dt>회전·기울기</dt><dd>오른쪽 드래그 또는 Shift + 왼쪽 드래그</dd><dt>시설 정보</dt><dd>시설 클릭 · 목록에서 선택</dd><dt>가까이 보기</dt><dd>시설 두 번 클릭 또는 상세의 버튼</dd><dt>복귀</dt><dd>전체 보기 버튼 · Esc로 패널 닫기</dd></dl><p>지도의 시설 색은 종류를 뜻합니다. 회전 모습은 시연이며, 개별 가동 상태·일사 관측은 미연결입니다.</p></section>
+      </div>
     </aside>
   </main>
-  <footer class="state-panel">
-    <div class="state-heading"><h2>제주 전체 수급 <span id="state-kind" class="muted">실제 관측 · 최신</span></h2><span id="state-status" role="status">불러오는 중</span><button id="refresh">다시 읽기</button></div>
-    <div class="time-bar">
-      <fieldset><legend>표시</legend><label><input type="radio" name="mode" value="latest" checked>최신</label><label><input type="radio" name="mode" value="history">과거</label><label><input type="radio" name="mode" value="scenario">시나리오</label></fieldset>
-      <div id="time-controls" hidden><input id="history-date" type="date" aria-label="날짜 (KST)"><input id="history-time" type="range" min="0" max="0" value="0" disabled aria-label="시각 (KST)"><output id="history-label" for="history-time">—</output><button id="play" type="button" disabled>재생</button></div>
-    </div>
-    <form id="scenario-form" hidden>
-      <label>수요 배율<input id="scale-demand" type="number" min="0" step="0.01" value="1.10" required></label><label>풍력 배율<input id="scale-wind" type="number" min="0" step="0.01" value="0.80" required></label><label>태양광 배율<input id="scale-solar" type="number" min="0" step="0.01" value="1.00" required></label>
-      <fieldset id="assumptions" disabled><legend><label><input id="assume" type="checkbox">가정 공급·ESS</label></legend>
-        <label>도내 비재생 G MW<input id="g-mw" type="number" min="0" step="any" required></label><label>HVDC#1 MW<input id="hvdc-1-mw" type="number" step="any" required></label><label>HVDC#2 MW<input id="hvdc-2-mw" type="number" step="any" required></label><label>HVDC#3 MW<input id="hvdc-3-mw" type="number" step="any" required></label><label><input id="hvdc-3-available" type="checkbox" checked>#3 가용</label>
-        <label>ESS MWh<input id="ess-mwh" type="number" min="0.01" step="any" required></label><label>ESS MW<input id="ess-mw" type="number" min="0" step="any" required></label><label>초기 SOC %<input id="ess-soc" type="number" min="0" max="100" step="any" required></label>
-        <p class="muted">사용자 가정 · 가정 효율 0.9(충전·방전) · HVDC 양수 수입/음수 수출</p>
-      </fieldset>
-      <button>시뮬레이션 실행</button>
-    </form>
-    <dl id="metrics"><div><dt>수요</dt><dd id="demand_mw">—</dd></div><div><dt>공급 용량</dt><dd id="supply_capacity_mw">—</dd></div><div><dt>풍력</dt><dd id="wind_mw">—</dd></div><div><dt>태양광</dt><dd id="solar_mw">—</dd></div><div><dt>재생에너지 합계</dt><dd id="renewable_total_mw">—</dd></div></dl>
-    <dl id="scenario-metrics" hidden><div><dt>순부하 기준→변경</dt><dd id="sim-net">—</dd></div><div><dt>ESS 전 잔차 (+부족/−잉여)</dt><dd id="sim-before">—</dd></div><div><dt>ESS 충전 / 방전</dt><dd id="sim-ess">—</dd></div><div><dt>SOC</dt><dd id="sim-soc">—</dd></div><div><dt>ESS 후 잔차</dt><dd id="sim-after">—</dd></div></dl>
-    <p id="state-source" class="muted">지역 집계이며 개별 시설의 실측 출력이 아닙니다.</p>
-  </footer>
+  <footer class="statusbar"><span id="map-data-status" role="status">기상 연결 확인 중</span><button data-tool="sources" aria-controls="info-panel" aria-expanded="false">자료 출처</button></footer>
 </body>
 </html>

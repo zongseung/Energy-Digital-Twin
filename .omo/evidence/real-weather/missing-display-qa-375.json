@@ -1,0 +1,101 @@
+{
+  "url": "http://localhost:8080/",
+  "at": "2026-09-30T06:31:48.260Z",
+  "errors": [],
+  "wind_frames": [
+    {
+      "count": 43,
+      "sample": {
+        "status": "fresh",
+        "weather_status": "fresh",
+        "temperature_c": 26.9,
+        "relative_humidity_percent": 74,
+        "precipitation_1h_mm": 0,
+        "source": "기상청 날씨누리",
+        "source_url": "https://www.weather.go.kr/w/observation/land/aws-obs.do",
+        "station": {
+          "id": 779,
+          "name": "한림",
+          "latitude": 33.39268,
+          "longitude": 126.25809
+        },
+        "observed_at": "2026-09-30T06:25:00Z",
+        "received_at": "2026-09-30T06:30:55Z",
+        "speed_m_s": 1.4,
+        "direction_from_deg": 0,
+        "direction_label": "북",
+        "directional_resolution_deg": 22.5,
+        "average_window_minutes": 10,
+        "quality_flags": [
+          "qc_not_provided"
+        ],
+        "poll_interval_seconds": 60,
+        "stale_after_seconds": 900
+      }
+    }
+  ],
+  "resources": [
+    {
+      "url": "http://localhost:8080/twin/style.css?v=weather-table-20260930",
+      "status": 200,
+      "from_disk_cache": false
+    },
+    {
+      "url": "http://localhost:8080/twin/app.js?v=weather-table-20260930",
+      "status": 200,
+      "from_disk_cache": false
+    }
+  ],
+  "display": {
+    "url": "http://localhost:8080/",
+    "viewport": 375,
+    "title": "탐라–한림 · 실제 영상과 지형 3D",
+    "station": "제주(공)(182) · 거리 미확인",
+    "values": "기온 26.4 °C · 습도 69 % · 이전 60분 강수 0 mm",
+    "status": "기상 최근 관측 · 위 관측소·시각 기준",
+    "panel": {
+      "x": 20,
+      "y": 681,
+      "width": 320,
+      "height": 365,
+      "top": 681,
+      "right": 340,
+      "bottom": 1046,
+      "left": 20
+    },
+    "style": {
+      "display": "block",
+      "color": "rgb(238, 238, 240)",
+      "font_size": "14px"
+    }
+  },
+  "table": {
+    "headers": [
+      "관측소 / 거리",
+      "바람",
+      "기온",
+      "습도",
+      "1시간 강수",
+      "일사량",
+      "관측"
+    ],
+    "cells": [
+      "고산(185)6.70 km",
+      "3.9 m/s · 북서최근 관측",
+      "26.2 °C",
+      "70 %",
+      "0 mm",
+      "—",
+      "09. 30.15:25 · 기상 최근"
+    ],
+    "station_id": 185,
+    "rows": 43,
+    "source": "일사량: 현재 AWS 원천 미제공 · 별도 자료 연동 필요"
+  },
+  "layout": {
+    "overflow": false,
+    "table_width": 600,
+    "panel_width": 305
+  },
+  "status": "VISIBLE"
+}

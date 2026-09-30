@@ -449,12 +449,59 @@ export async function loadGrid(redraw = () => {}) {
   if (layers.get('vegetation').length) visible.vegetation = true; // baked vegetation_* nodes are optional: without them the toggle is disabled
   const cover = (green || data.groundcover) && groundcover(green ? {index:green} : data.groundcover, surfaces, redraw);
   if (cover) { object.add(cover.group); layers.get('groundcover').push(cover.group); visible.groundcover = true; }
+  object.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(gltf.scene), obstacles = new Map();
+  const terrainHeight = surface(surfaces, [bounds.min.x, bounds.min.z, bounds.max.x, bounds.max.z]);
+  gltf.scene.traverse((mesh) => {
+    if (!mesh.isMesh || surfaces.includes(mesh) || mesh.name.startsWith('groundcover_')) return;
+    const box = new THREE.Box3().setFromObject(mesh);
+    // Rotating rotor parts stay inside a conservative cached envelope.
+    for (let node = mesh; node; node = node.parent) if (rotors.includes(node)) {
+      box.expandByScalar(box.getSize(new THREE.Vector3()).length()); break;
+    }
+    const entry = {mesh, box};
+    for (let x = Math.floor(box.min.x / CELL); x <= Math.floor(box.max.x / CELL); x++) for (let z = Math.floor(box.min.z / CELL); z <= Math.floor(box.max.z / CELL); z++) bucket(obstacles, x * 4096 + z).push(entry);
+  });
+  const raycaster = new THREE.Raycaster(), downRay = new THREE.Raycaster(undefined, new THREE.Vector3(0, -1, 0));
+  const shown = (node) => {
+    for (; node; node = node.parent) if (!node.visible || (node.userData.facility && visible[node.userData.facility.layer] === false)) return false;
+    return true;
+  };
   const [longitude, latitude] = data.coordinateFrame.origin_lon_lat;
   // UTM52 meridian convergence at this small scene's origin; input wind is 16-point true-north bearing.
   const northOffset = -Math.atan(Math.tan(THREE.MathUtils.degToRad(longitude - 129)) * Math.sin(THREE.MathUtils.degToRad(latitude)));
   const up = new THREE.Vector3(0, 1, 0);
   return {
-    object, data, records, pickables, visible, rotors,
+    object, data, records, pickables, visible, rotors, bounds,
+    groundHeight(x, z) {
+      if (!Number.isFinite(x) || !Number.isFinite(z)) return 0;
+      let y = terrainHeight(x, z); if (!Number.isFinite(y)) y = 0;
+      const candidates = (obstacles.get(cellKey(x, z)) || []).filter(({mesh, box}) => shown(mesh) && x >= box.min.x && x <= box.max.x && z >= box.min.z && z <= box.max.z && box.max.y > y).sort((a, b) => b.box.max.y - a.box.max.y);
+      downRay.ray.origin.set(x, Math.max(bounds.max.y + 1, ...candidates.map(({box}) => box.max.y + 1)), z);
+      for (const {mesh, box} of candidates) {
+        if (box.max.y <= y) continue;
+        const hit = downRay.intersectObject(mesh, false)[0];
+        if (hit && Number.isFinite(hit.point.y)) y = Math.max(y, hit.point.y);
+      }
+      return y;
+    },
+    pick(camera, ndc, {firstOnly = false} = {}) {
+      if (!Number.isFinite(ndc.x) || !Number.isFinite(ndc.y)) return [];
+      raycaster.camera = camera; raycaster.layers.mask = camera.layers.mask;
+      raycaster.setFromCamera(ndc, camera); raycaster.params.Points.threshold = 3;
+      const found = [], seen = new Set();
+      for (const hit of raycaster.intersectObjects(pickables.filter(shown), true)) {
+        if (!shown(hit.object)) continue;
+        const material = Array.isArray(hit.object.material) ? hit.object.material[hit.face?.materialIndex || 0] : hit.object.material;
+        if (material?.visible === false) continue;
+        let node = hit.object; while (node && !node.userData.facility) node = node.parent;
+        const record = node?.userData.facility;
+        if (!record || seen.has(record.id)) continue;
+        found.push(record); seen.add(record.id);
+        if (firstOnly) break;
+      }
+      return found;
+    },
     resize(width, height) { for (const material of materials) material.resolution.set(width, height); },
     setLayer(layer, enabled) { visible[layer] = enabled; for (const child of layers.get(layer) || []) child.visible = enabled; },
     setWindDirections(directions) {

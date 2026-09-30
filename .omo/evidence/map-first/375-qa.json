@@ -1,0 +1,103 @@
+{
+  "url": "http://localhost:8080/",
+  "width": 375,
+  "height": 812,
+  "at": "2026-09-30T08:36:05.513Z",
+  "errors": [],
+  "checks": [
+    {
+      "scenario": "initial full map without selection",
+      "screenshot": ".omo/evidence/map-first/375-initial.png"
+    },
+    {
+      "scenario": "selection shows honest state and measured weather",
+      "screenshot": ".omo/evidence/map-first/375-detail.png"
+    },
+    {
+      "scenario": "weather tool and unavailable irradiance",
+      "screenshot": ".omo/evidence/map-first/375-weather.png"
+    },
+    {
+      "scenario": "mobile sheet expands without control overlap",
+      "screenshot": ".omo/evidence/map-first/375-expanded.png"
+    },
+    {
+      "scenario": "layer tool independent of detail",
+      "screenshot": ".omo/evidence/map-first/375-layers.png"
+    },
+    {
+      "scenario": "disabled layer removes marker selection",
+      "screenshot": ".omo/evidence/map-first/375-wind-hidden.png"
+    },
+    {
+      "scenario": "real map marker click opens facility details, including overlapping candidates",
+      "screenshot": ".omo/evidence/map-first/375-map-click.png"
+    },
+    {
+      "scenario": "search empty/reset and keyboard selection/Escape focus return",
+      "screenshot": ".omo/evidence/map-first/375-keyboard.png"
+    },
+    {
+      "scenario": "real wheel, pan and rotate without accidental selection",
+      "screenshot": ".omo/evidence/map-first/375-navigation.png"
+    },
+    {
+      "scenario": "panel wheel scrolls information and preserves camera",
+      "screenshot": ".omo/evidence/map-first/375-panel-scroll.png"
+    },
+    {
+      "scenario": "regional history preserves current weather scope",
+      "screenshot": ".omo/evidence/map-first/375-analysis.png"
+    },
+    {
+      "scenario": "reduced motion and idle frame stop",
+      "screenshot": ".omo/evidence/map-first/375-final.png"
+    }
+  ],
+  "browserErrors": [
+    "[4148087:4148118:0930/173611.373740:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT\n"
+  ],
+  "layout": {
+    "viewport": [
+      375,
+      812
+    ],
+    "map": {
+      "x": 0,
+      "y": 56,
+      "width": 375,
+      "height": 728,
+      "top": 56,
+      "right": 375,
+      "bottom": 784,
+      "left": 0
+    },
+    "overflow": false,
+    "panelHidden": true,
+    "selection": null
+  },
+  "gpu": "ANGLE (NVIDIA, Vulkan 1.3.242 (NVIDIA NVIDIA RTX A6000 (0x00002230)), NVIDIA)",
+  "detail": {
+    "name": "탐라 해상풍력 01",
+    "state": "확인 불가",
+    "power": "—",
+    "panel": {
+      "x": 0,
+      "y": 492.8125,
+      "width": 375,
+      "height": 291.1875,
+      "top": 492.8125,
+      "right": 375,
+      "bottom": 784,
+      "left": 0
+    },
+    "tool": "detail"
+  },
+  "lastPose": "translate(487.02px, 122.92px)|translate(248.94px, 165.71px)|translate(697.62px, 134.35px)|translate(195.36px, 174.58px)|translate(195.20px, 174.50px)|translate(202.02px, 173.48px)|translate(201.18px, 173.45px)|translate(338.69px, 423.40px)|translate(320.63px, 401.94px)|translate(303.54px, 383.51px)|translate(287.14px, 367.13px)|translate(263.58px, 352.74px)|translate(261.21px, 338.99px)|translate(248.45px, 326.71px)|translate(238.91px, 315.70px)|translate(228.98px, 305.72px)|translate(217.42px, 296.52px)|translate(197.84px, 174.82px)|translate(217.00px, 176.13px)|translate(126.28px, 174.81px)|translate(317.39px, 177.45px)",
+  "action": "right rotate",
+  "idleDrawCalls": {
+    "before": 293908,
+    "after": 293908
+  },
+  "status": "PASS"
+}
