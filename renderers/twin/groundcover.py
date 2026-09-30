@@ -41,20 +41,20 @@ CROPS, WALLED = {"field", "paddy", "other_crop"}, {"전", "과"}
 FARM = {"전", "답", "과", "목"}  # 지목 that carries crop rows
 LAYER, API = "LP_PA_CBND_BUBUN", "https://api.vworld.kr/req/data"
 DOC = "https://www.vworld.kr/dev/v4dv_2ddataguide2_s002.do?svcIde=cadastral"
-TILES = 3  # 3 x 3 AOI boxes of ~1.4 km2; the documented geomFilter area limit is 2 km2
+STEP, PAUSE = .0125, .3  # box edge <= 0.0125 deg (<= 1.62 km2; documented geomFilter limit 2 km2), seconds between requests
 
 
-def landcover() -> tuple[list, list]:
-    """Stream the 290 MB GeoJSONL; keep groundcover classes that touch the AOI."""
+def landcover(bbox=AOI, classes: dict = CLASSES) -> tuple[list, list]:
+    """Stream the 290 MB GeoJSONL; keep `classes` that touch the lon/lat bbox."""
     meta = json.loads(LANDCOVER.with_name(LANDCOVER.name + ".metadata.json").read_text())
     assert sha(LANDCOVER) == meta["sha256"], "landcover.geojsonl does not match its metadata"
-    aoi = shapely.box(*AOI)
+    aoi = shapely.box(*bbox)
     with LANDCOVER.open(encoding="utf-8") as lines:
         features = [f for line in lines if '"제주"' in line for f in [json.loads(line)]
-                    if f["properties"]["l2_code"] in CLASSES and aoi.intersects(shapely.geometry.shape(f["geometry"]))]
+                    if f["properties"]["l2_code"] in classes and aoi.intersects(shapely.geometry.shape(f["geometry"]))]
     return features, [{"kind": "landcover_zones", "path": str(LANDCOVER.relative_to(ROOT)),
                        **{key: meta[key] for key in ("sha256", "source", "collected_at", "license")},
-                       "attribution": "환경부 토지피복지도 중분류", "classes": CLASSES,
+                       "attribution": "환경부 토지피복지도 중분류", "classes": classes,
                        "img_dates": sorted({str(f["properties"].get("img_date")) for f in features})}]
 
 
@@ -76,6 +76,12 @@ def jimok(jibun: str) -> str:
     return jibun.strip()[-1:].strip("0123456789")
 
 
+def row_angle(shape) -> float:
+    """Long axis of the minimum rotated rectangle, degrees from +x toward +z in [0, 180)."""
+    _, long, _ = axes(shape)
+    return round(math.degrees(math.atan2(long[1], long[0])), 1) % 180
+
+
 def zones(features: list, frame: dict, aoi, built) -> list:
     """[(class, polygon)] in scene x/z: AOI-clipped, buildings (+1 m) removed, tidied; slivers under 1 m2 dropped."""
     out = []
@@ -86,25 +92,26 @@ def zones(features: list, frame: dict, aoi, built) -> list:
     return out
 
 
-def cadastre(features: list, frame: dict, aoi, crop, blocked) -> tuple[list, list, Counter]:
-    """Crop parcels [{id, jimok, row_angle_deg, ring}], wall polylines and the AOI 지목 distribution."""
-    inside = [(f["properties"], s) for f in features if (s := scene_shape(f, frame)).intersects(aoi)]
+def cadastre(shapes: list, aoi, crop, blocked, scale: float = 1) -> tuple[list, list, Counter]:
+    """Crop parcels [{id, jimok, row_angle_deg, ring}], wall polylines and the AOI 지목 distribution from [(properties, scene shape)].
+    scale > 1 simplifies rings and walls harder (tile size cap)."""
+    inside = [(p, s) for p, s in shapes if s.intersects(aoi)]
     parcels = []
     for p, s in inside:
         # ponytail: farm 지목 at least half inside crop zones only (1.5 MB budget); other lots fall back to cell estimates.
         clipped = s.intersection(aoi)
-        if jimok(p["jibun"]) not in FARM or shapely.intersection(clipped, crop).area < .5 * clipped.area:
+        if jimok(p["jibun"]) not in FARM or clipped.area < 1 or shapely.intersection(clipped, crop).area < .5 * clipped.area:
             continue
-        _, long, _ = axes(clipped)
         # ponytail: ring simplified <= 2 m (budget) as a row-angle lookup outline; walls and zones carry the edges.
-        part = max(shapely.get_parts(tidy(clipped, 2)), key=lambda q: q.area)
-        parcels.append({"id": p["pnu"], "jimok": jimok(p["jibun"]), "ring": xz(part.exterior)[:-1],
-                        "row_angle_deg": round(math.degrees(math.atan2(long[1], long[0])), 1) % 180})
+        part = max(shapely.get_parts(tidy(clipped, 2 * scale)), key=lambda q: q.area, default=None)
+        if part is not None and part.area >= 1:  # clip-edge slivers can collapse on the 0.1 m grid
+            # Angle of the whole parcel: the same rows on both sides of a clip edge.
+            parcels.append({"id": p["pnu"], "jimok": jimok(p["jibun"]), "ring": xz(part.exterior)[:-1], "row_angle_deg": row_angle(s)})
     # Unclipped boundaries, so the AOI edge is no wall; union on the 0.1 m grid dissolves shared edges.
     # ponytail: neighbours that disagree by more than the grid stay double; snap harder if double walls show.
     walled = [s for p, s in inside if jimok(p["jibun"]) in WALLED]
     lines = shapely.union_all(shapely.boundary(shapely.set_precision(walled, .1))).intersection(aoi).difference(blocked)
-    walls = [w for w in shapely.get_parts(tidy(shapely.line_merge(lines), 1)) if w.length >= 2]  # ponytail: < 2 m stubs dropped
+    walls = [w for w in shapely.get_parts(tidy(shapely.line_merge(lines), scale)) if w.length >= 2]  # ponytail: < 2 m stubs dropped
     return parcels, walls, Counter(jimok(p["jibun"]) for p, _ in inside)
 
 
@@ -131,7 +138,7 @@ def add_groundcover(scene: trimesh.Scene, frame: dict, height_at, features: list
     aoi = aoi_polygon(frame, AOI)
     zoned = zones(features, frame, aoi, built)
     road_area = shapely.union_all([shapely.LineString(line).buffer(width(r)[0] / 2 + .5) for r in roads for line in r["lines"]])
-    plots, walls, jimoks = cadastre(parcels, frame, aoi, shapely.union_all([p for c, p in zoned if c in CROPS]), built | road_area)
+    plots, walls, jimoks = cadastre([(f["properties"], scene_shape(f, frame)) for f in parcels], aoi, shapely.union_all([p for c, p in zoned if c in CROPS]), built | road_area)
     area, row_source = Counter(), "cadastral" if plots else "cell50_estimated"
     for c, p in zoned:
         area[c] += p.area
@@ -159,31 +166,47 @@ def add_groundcover(scene: trimesh.Scene, frame: dict, height_at, features: list
                        "No paddy water surface: an opaque slab hid the current imagery (late-September paddies, and greenhouses now inside part of a 2023 paddy zone)."]}
 
 
+PARAMS = {"service": "data", "version": "2.0", "request": "GetFeature", "data": LAYER, "format": "json", "crs": "EPSG:4326", "size": 1000}
+
+
+def boxes(bbox, frame: dict) -> list[tuple]:
+    """The lon/lat bbox as a grid of equal boxes, each under the documented 2 km2 geomFilter limit."""
+    nx, ny = (math.ceil((bbox[k + 2] - bbox[k]) / STEP - 1e-9) for k in (0, 1))
+    lon, lat = np.linspace(bbox[0], bbox[2], nx + 1), np.linspace(bbox[1], bbox[3], ny + 1)
+    out = [(w, s, e, n) for s, n in pairwise(lat.tolist()) for w, e in pairwise(lon.tolist())]
+    assert max(aoi_polygon(frame, b).area for b in out) < 2e6, "box exceeds the documented 2 km2 geomFilter limit"
+    return out
+
+
+def fetch_box(box, key: str) -> list:
+    """All LP_PA_CBND_BUBUN pages of one box ([] when NOT_FOUND); errors name the page or VWorld code, never the key."""
+    query, page, pages, got = {**PARAMS, "geomFilter": "BOX({},{},{},{})".format(*box)}, 1, 1, []
+    while page <= pages:
+        try:
+            with urlopen(API + "?" + urlencode({**query, "page": page, "key": key}), timeout=60) as response:
+                payload = json.load(response)["response"]
+        except Exception as error:
+            raise RuntimeError(f"{LAYER} page {page} failed ({type(error).__name__} {getattr(error, 'code', '')})".rstrip()) from None
+        time.sleep(PAUSE)  # polite throttle
+        if payload["status"] == "NOT_FOUND":  # no parcels (sea)
+            return []
+        if payload["status"] != "OK":  # e.g. OVER_REQUEST_LIMIT
+            raise RuntimeError(f"{LAYER} page {page}: {(payload.get('error') or {}).get('code', payload['status'])}")
+        got += payload["result"]["featureCollection"]["features"]
+        page, pages = page + 1, int(payload["page"]["total"])
+    assert len(got) == int(payload["record"]["total"]), box
+    return got
+
+
 def collect() -> dict:
-    """Documented LP_PA_CBND_BUBUN GetFeature pages over TILES x TILES AOI boxes; the key exists only inside the request."""
+    """Documented LP_PA_CBND_BUBUN GetFeature pages over the AOI boxes; the key exists only inside the request."""
     frame = json.loads(SITE.read_text())["projection"]
-    lon, lat = np.linspace(AOI[0], AOI[2], TILES + 1), np.linspace(AOI[1], AOI[3], TILES + 1)
-    boxes = [(w, s, e, n) for s, n in pairwise(lat.tolist()) for w, e in pairwise(lon.tolist())]
-    assert max(aoi_polygon(frame, b).area for b in boxes) < 2e6, "tile exceeds the documented 2 km2 geomFilter limit"
-    params = {"service": "data", "version": "2.0", "request": "GetFeature", "data": LAYER, "format": "json", "crs": "EPSG:4326", "size": 1000}
     key, features, records = read_key(ROOT / ".env"), {}, []
-    for box in boxes:
-        query, page, pages, got = {**params, "geomFilter": "BOX({},{},{},{})".format(*box)}, 1, 1, []
-        while page <= pages:
-            try:
-                with urlopen(API + "?" + urlencode({**query, "page": page, "key": key}), timeout=60) as response:
-                    payload = json.load(response)["response"]
-            except Exception as error:
-                raise RuntimeError(f"{LAYER} page {page} failed ({type(error).__name__})") from None
-            if payload["status"] == "NOT_FOUND":  # a tile with no parcels (sea)
-                break
-            assert payload["status"] == "OK", payload.get("error")
-            got += payload["result"]["featureCollection"]["features"]
-            page, pages = page + 1, int(payload["page"]["total"])
-        assert payload["status"] == "NOT_FOUND" or len(got) == int(payload["record"]["total"]), box
+    for box in boxes(AOI, frame):
+        got = fetch_box(box, key)
         records.append({"box": box, "features": len(got)})
         features |= {f["id"]: f for f in got}  # parcels crossing tile edges come back once per tile
-    data = {"layer": LAYER, "source": API, "documentation": DOC, "request": params, "tiles": records,
+    data = {"layer": LAYER, "source": API, "documentation": DOC, "request": PARAMS, "tiles": records,
             "acquired_at": datetime.now(timezone.utc).isoformat(), "attribution": "공간정보 오픈플랫폼(브이월드) / 국토교통부",
             "features": list(features.values())}
     OUT.mkdir(parents=True, exist_ok=True)
