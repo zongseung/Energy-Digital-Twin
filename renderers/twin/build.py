@@ -18,7 +18,6 @@ import json
 import math
 from pathlib import Path
 import struct
-from typing import TypedDict
 
 import numpy as np
 import rasterio
@@ -27,25 +26,6 @@ from rasterio.warp import transform as project_crs
 import trimesh
 from trimesh.visual.material import PBRMaterial
 from trimesh.visual.texture import TextureVisuals
-
-
-class GltfNode(TypedDict, total=False):
-    name: str
-    children: list[int]
-    matrix: list[float]
-    mesh: int
-
-
-class GltfTree(TypedDict):
-    nodes: list[GltfNode]
-
-
-class Verification(TypedDict):
-    status: str
-    facilities: int
-    reopened_meshes: int
-    rotor_diameter_m: float
-    checks: list[str]
 
 
 def sha(path: Path) -> str:
@@ -256,7 +236,7 @@ def instance(scene: trimesh.Scene, prototype_scene: trimesh.Scene, node: str, ma
         scene.graph.update(frame_to=child, frame_from=parent, **kwargs)
 
 
-def glb_tree(path: Path) -> GltfTree:
+def glb_tree(path: Path) -> dict:
     data = path.read_bytes()
     magic, version, length = struct.unpack_from("<4sII", data)
     assert magic == b"glTF" and version == 2 and length == len(data)
@@ -265,7 +245,7 @@ def glb_tree(path: Path) -> GltfTree:
     return json.loads(data[20:20 + chunk_length])
 
 
-def verify(output: Path, spec: dict, source_features: list) -> Verification:
+def verify(output: Path, spec: dict, source_features: list) -> dict:
     """Check exported/reopened files, published radius, source placement, hierarchy and real mesh normals."""
     manifest = json.loads((output / "manifest.json").read_text())
     assert len(manifest["facilities"]) == 10
