@@ -152,7 +152,7 @@
 - [x] 동일 시각 정정·재접속·disconnect 동작을 합성 WS source로 검사했다. 계획의 테스트 이름과는 다르며 unchanged case는 별도 명시 증거가 없다.
 - [x] 단일 upstream WS 수신 task와 watch 기반 fanout을 구현했다. 클라이언트마다 source 조회나 별도 bridge 연결을 만들지 않는다. 터널/브릿지/원천 실패는 상태 알림으로 보내고 이전 성공값의 시각을 유지한다.
 - [x] 허용 Origin, 송신 timeout과 heartbeat를 적용했다. upstream 메시지 상한은 검사한다; 사용자 연결의 계획상 16KiB 제한은 별도 확인되지 않았다. 송신 timeout 5초, heartbeat 30초다. 이 연결은 최신 관측 구독만 제공한다.
-- [ ] watch fanout·정정/재접속/종료 검사는 통과했다; 느린 consumer 전용 검사와 현재 값/변경 대기 race 전용 검사는 증거가 없어 부분 완료다.
+- [x] watch fanout·정정/재접속/종료 검사에 더해 느린 consumer(4KiB 수신 버퍼·5초 송신 제한 후 slot 회수, 빠른 client는 최신 수신, 5/5회), 초기 snapshot 직후 정정 race(30회), `sent_at`만 다른 동일 프레임 재전송 억제 검사를 추가했다. 실제 WS에서 동일 내용 v145→v146 재전송을 관측해 내용 비교(`send_if_modified`)로 고쳤다 (`a776dda`, `var/verification/ws-tests/`, `var/verification/integration/ws-watch.json`).
 - [x] 15분 지연 경계(899/900초·미래 시각·재설정)를 단위 검사했다 (`bridge::tests::delay_begins_at_exactly_fifteen_minutes`). Actual tunnel disconnect/recovery passed: status WS preserved the last observed_at and five MW values while health/state returned 503; after manual reconnect the same client received snapshot version 18 and health returned 200 (`live-tunnel-recovery.log`, `.json`).
 - [x] 전체 suite의 WS 합성 통합 검사와 15분 지연 경계 단위 검사 통과. 실제 source WS 초기 snapshot도 source 관측과 대조했다 (`live-integration.log`). Tunnel disconnect/manual recovery passed (`var/verification/live-tunnel-recovery.log`, `.json`); automatic startup remains unimplemented. Redis Pub/Sub나 durable stream은 추가하지 않았다.
 
@@ -200,12 +200,12 @@
 **사용자 참고 이미지에 따른 정정 (2026-09-30):** 실제 공장과 그 설비 배치를 재현한 3D 장면을 나란히 보여 준 이미지는 요구 품질의 기준이다. 프로젝트 대상이 공장으로 바뀐 것은 아니다. 제주 설비를 독립 3D 객체로 구성하고 실제 형상·배치·확인된 치수를 맞춘 뒤, 안정 ID로 확보된 운전 데이터를 연결해야 한다. VWorld 영상 지도와 건물 높이 입체화 역시 공간 검증 보조물이며 이 기준의 대체 결과가 아니다. 로컬 제작 폴더와 원격 `/mnt/iscsi/energy-digital-twin/geography/jeju`에는 검증된 제조사 설비 GLB/USD/CAD/BIM이 없다. 아래 10기 GLB는 확인된 일부 사양과 사진 참고를 사용해 만든 추정 geometry이며 실제 터빈 대응·치수·사진 정합은 검증되지 않았다. 제조사/측량 자산과 정확한 정합이 여전히 필요하다.
 
 - [ ] Omniverse 실행 버전과 확장을 고정하고, GPU 1에서 대표 자산/1m 기준체를 로드한다. 소스 자산의 길이 대비 scale 오차 1% 이하, 재질 누락 없음, 시설별 선택을 확인한다.
-- [ ] Task 2–4의 HTTP 계약과 Task 3의 WS envelope를 연결한다. 시설은 manifest의 안정 ID로 찾으며 개별 계량이 없으면 제주 집계 HUD와 해당 시설의 자료 미확보를 표시한다.
-- [ ] 상태 적용을 `should_apply(mode, requested_at, response_at, is_live, requested_seq, response_seq) -> bool` 함수로 분리해 필요한 한 테스트 파일에서 검사한다. history에서는 live=false·선택 시점 일치·요청 sequence 일치를 모두 요구한다. scenario에서 관측 응답 거부, latest에서 최신 관측 적용을 확인한다. 같은 시점의 오래된 HTTP 요청 응답도 최신 선택을 덮어쓰지 않아야 한다.
+- [x] (2026-09-30) 웹은 최신/과거/시나리오 모드로 `/state`·`/timeline`·`/simulate`·`/ws`를 사용하고, Kit `twin.py --live/--replay/--select`는 같은 WS envelope·`/state?at`를 USD 속성에 반영하며 `facilityId`로 시설을 선택하고 개별 출력 미확보를 기록한다 (`docs/estimated-twin.md`, `docs/omniverse-twin.md`, `var/rendering/omniverse/live-01..03`). Task 2–4의 HTTP 계약과 Task 3의 WS envelope를 연결한다. 시설은 manifest의 안정 ID로 찾으며 개별 계량이 없으면 제주 집계 HUD와 해당 시설의 자료 미확보를 표시한다.
+- [x] (2026-09-30) 웹 `renderers/twin/playback.mjs`의 `shouldApply`와 `node tests/playback.mjs`로 구현했다. 브라우저에서 A 응답 3초 지연 후 B 선택 → 최종 B, 과거·시나리오 중 WS 무시를 확인했다 (`var/verification/playback/qa.json`). 상태 적용을 `should_apply(mode, requested_at, response_at, is_live, requested_seq, response_seq) -> bool` 함수로 분리해 필요한 한 테스트 파일에서 검사한다. history에서는 live=false·선택 시점 일치·요청 sequence 일치를 모두 요구한다. scenario에서 관측 응답 거부, latest에서 최신 관측 적용을 확인한다. 같은 시점의 오래된 HTTP 요청 응답도 최신 선택을 덮어쓰지 않아야 한다.
 - [ ] Kit UI/scene thread에 안전하게 반영하고, 입력/선택·카메라·시간축·WS 재접속·느린 서버/오류 표시를 확인한다. 모델을 프레임마다 재생성하지 않는다.
 - [ ] 동일 GLB를 지정 Unity/glTFast와 Unreal 버전에서 가져와 형상·scale·텍스처·node/ID 보존을 비교한다. GLB/USD import 성공과 해당 엔진의 완성된 운영 UI/WS 연결을 구분해 기록한다.
 - [ ] 렌더러는 GPU 앱의 `127.0.0.1:8090`에서 실제 health·snapshot·WS를 사용한다. 브릿지/터널 단절이 앱과 렌더러에 전달되는지 확인한다. 렌더러 컨테이너에서는 호스트 앱 접근도 확인한다. 서버 렌더링의 화면 스트리밍은 첫 장면 실행 뒤 별도 배포 범위로 결정한다.
-- [ ] 카메라·선택·시점 갱신과 1920×1080에서 60초 FPS p5≥30 목표를 시험한다. 목표 미달은 자산/장면 복잡도를 조정하고 결과를 기록한다. 협업·SSO·권한·클라우드 배포는 구현한 항목만 지원으로 보고한다.
+- [x] (2026-09-30) 서버 headless Chromium 1920×1080 60초 드래그: A6000 Vulkan p5 59.5 FPS 통과, SwiftShader p5 1.4 FPS 미달을 기록했다. 사용자 기기 수치는 아니다 (`var/verification/fps/`). 카메라·선택·시점 갱신과 1920×1080에서 60초 FPS p5≥30 목표를 시험한다. 목표 미달은 자산/장면 복잡도를 조정하고 결과를 기록한다. 협업·SSO·권한·클라우드 배포는 구현한 항목만 지원으로 보고한다.
 
 **Mock renderer preliminary QA (separate from Task 6 completion):**
 
@@ -241,7 +241,7 @@
 **Files:** `tests/integration.rs`, `README.md`, 확정된 제품 파일.
 
 - [x] fmt, clippy `-D warnings`, locked tests(39 unit + 1 shutdown + 3 CLI = 43), Docker build/smoke 통과. `var/verification/cache-final-tests.log`, `cache-docker-build.log`, `cache-docker-smoke.log`, `cache-compose-up.log` 및 이전 단계 기록 참조.
-- [ ] 앱↔실제 bridge/전용 Redis는 GIS·timeline·exact state·WS snapshot까지 통합 확인했다. Manual tunnel disconnect/recovery is verified; automatic startup and renderer connection remain unverified, so Task 7 completion criteria are unmet.
+- [ ] 앱↔실제 bridge/전용 Redis는 GIS·timeline·exact state·WS snapshot까지 통합 확인했다. Manual tunnel disconnect/recovery is verified. 2026-09-30: web and Kit renderers now consume the real app HTTP/WS (Kit disconnect checked through a local flaky proxy, not a real bridge outage). Automatic tunnel startup remains unimplemented, so Task 7 completion criteria are unmet.
 - [x] Compose/Docker HTTP simulation·CLI replay 및 fixture 오류 경계 통과 후, 실제 tunnel에서 health·GIS·timeline·두 exact state·WS snapshot 및 SSH master 단절/수동 복구를 확인했다. Real full-day gap handling은 위 기록과 같으며 renderer 미연결이다. 운영 DB/service는 변경·중지하지 않았다.
 - [ ] 현재 README에는 브릿지·전송·방법론을, GPU README에는 제품 실행·추론·렌더링·실제 검사·미확보 입력을 기록한다. `.env`·연결 문자열이 빌드 context·로그·브라우저 산출물에 없는지 확인한다.
 - [ ] 완료 기준: 백엔드 계약·수급/ESS 정확성·Docker 실행은 각각 확인하고, 전체 디지털 트윈 완료는 Tasks 5–6의 실제 사진 기반 3D 통합까지 충족했을 때만 선언한다.

@@ -82,6 +82,18 @@ Rust HTTP/WS는 실제 **제주 집계**만 표시한다. 개별 시설 발전�
 
 한계: 재생 중 1초 안에 오지 않은 `/state?at` 응답은 다음 구간 요청에 밀려 버려진다. 시나리오의 G/HVDC/ESS는 하루 전체에 같은 상수 가정이며 시간대별 입력, HVDC 링크 한계·ESS 효율 변경은 화면에 없다. 최근 전날 자료에는 중간 결측이 없어 실제 `incomplete` 응답은 화면에서 확인하지 못했다.
 
+## 1920×1080 카메라 조작 FPS (2026-09-30)
+
+`node var/verification/fps/fps.mjs <swiftshader|vulkan> 60`은 headless Chromium 151로 기본 시점을 60초 동안 원형 드래그하고, rAF 간격에서 p5 FPS(=1000/p95 간격)를 계산한다. WebGL `clear()` 호출 수로 실제 렌더 횟수도 확인한다. GPU 여부는 실행 옵션이 아니라 WebGL renderer 문자열로 판정한다.
+
+| 조건 | renderer | p5 / 평균 FPS | 목표 p5≥30 |
+|---|---|---|---|
+| GPU 유휴, 최종 페이지 | ANGLE Vulkan · NVIDIA RTX A6000 | 59.5 / 59.6 | 통과(60 Hz 상한) |
+| Kit 라이브와 GPU1 공유 | ANGLE Vulkan · NVIDIA RTX A6000 | 59.9 / 59.5 | 통과 |
+| 소프트웨어 | ANGLE Vulkan · SwiftShader | 1.4 / 3.4 | **미달** |
+
+서버 headless 측정이며 사용자 기기 수치가 아니다. 웹 장면은 접속 기기의 GPU로 그려지므로 GPU 가속이 없는 기기에서는 소프트웨어 행처럼 느려질 수 있다. 결과: `var/verification/fps/result-*.json`.
+
 ## 재생성과 확인
 
 ```bash

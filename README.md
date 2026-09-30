@@ -18,7 +18,7 @@ cargo run --locked -- simulate examples/scenario.json > result.json
 
 브릿지가 연결되지 않았으면 `/health/live`는 200, `/api/v1/health`는 503이 정상입니다. `state`, `timeline`, `assets`, `ws`와 `POST /api/v1/jeju/simulate` 경로를 제공합니다. [SSH local forward](docs/bridge-client.md)를 연 뒤 아래 설정으로 연결합니다. [HTTP/CLI 시뮬레이션](docs/simulation.md)은 동일한 Rust 계산기를 사용합니다.
 
-현재 기본 화면은 [탐라–한림 통합 3D](docs/estimated-twin.md)입니다. 실제 VWorld 영상과 Copernicus DSM 고도 위에 풍력10기·PV3곳·변전소·송전 구조를 함께 표시합니다. 시점 버튼으로 같은 일부 구역을 탐색하고 실제 제주 수급 집계를 확인합니다. 시설 외형·패널 수·배치는 추정이며 개별 계측은 미확보입니다.
+현재 기본 화면은 [탐라–한림 통합 3D](docs/estimated-twin.md)입니다. 실제 VWorld 영상과 Copernicus DSM 고도 위에 풍력10기·PV3곳·변전소·송전 구조를 함께 표시합니다. 시점 버튼으로 같은 일부 구역을 탐색하고, 하단 패널에서 제주 수급 집계를 최신·과거(실제 존재 시각)·시나리오(`/simulate`, 실측 아님) 모드로 확인합니다. 시설 외형·패널 수·배치는 추정이며 개별 계측은 미확보입니다.
 
 웹은 접속 기기의 WebGL을 사용하고, 같은 장면의 서버 GPU1 RTX 결과도 제공합니다. 다운로드한 TRELLIS.2/DINOv3/RMBG는 실제 신창 사진으로 GPU0 추론을 실행했지만, 결과가 전경 등대 중심이어서 풍력 자산으로 채택하지 않았습니다. [실행·원천·GPU·검증 범위](docs/estimated-twin.md)를 확인하세요.
 
@@ -39,6 +39,7 @@ curl -i http://127.0.0.1:8090/api/v1/jeju/state
 - [탐라 추정 시설 3D 실행·검증](docs/estimated-twin.md)
 - [신창 실제 공간 자료 기반 3D 실행](docs/site-rendering.md)
 - [Omniverse GPU Mock 실행](docs/omniverse-mock.md)
+- [실제 건물 3D 데이터 원천 조사 (2026-09-30)](exa-results/jeju-real-building-3d-sources-2026-09-30.md)
 - [기획서](jeju_power_grid_digital_twin_design.md)
 - [이번 구현 범위와 검증 기록](docs/superpowers/plans/2026-09-29-infrastructure.md)
 
