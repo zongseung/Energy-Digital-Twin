@@ -3,6 +3,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {loadGrid} from '/twin/grid.js';
 import {estimateWind} from '/twin/wind-estimate.mjs';
+import {shouldApply, kstDay} from '/twin/playback.mjs';
 
 const el = (id) => document.getElementById(id);
 const metricKeys = ['demand_mw', 'supply_capacity_mw', 'wind_mw', 'solar_mw', 'renewable_total_mw'];
@@ -12,6 +13,7 @@ let renderer, scene, camera, controls, selected, grid;
 let demoFrame = 0, previousTime = 0, socket, reconnectTimer, contextLost = false;
 let windData = null, windSocket, windReconnectTimer, windMessageTimer, windExpiryTimer, windFetchFailed = false;
 let rotorRPM = new Map();
+let mode = 'latest', seq = 0, times = [], lastLive = null, selectedAt = null, playTimer, scenario = null, dayNote = '';
 function status(id, message, failed = false) {
   el(id).textContent = message;
   el(id).classList.toggle('error', failed);
@@ -178,13 +180,19 @@ function showState(data) {
   status('state-status', `${delayed ? '원천 갱신 지연 · ' : ''}${new Date(data.observed_at).toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})} KST 관측`);
   el('state-source').textContent = `출처: ${data.source || '—'} · 품질: ${flags.join(', ') || '표시 없음'} · 제주 집계 / 개별 시설 출력 아님`;
 }
+function blank(message, failed = true) {
+  for (const key of metricKeys) el(key).textContent = '—';
+  status('state-status', message, failed);
+}
+function live(data) {
+  lastLive = data;
+  if (shouldApply(mode, null, data?.observed_at, true, 0, 0)) showState(data);
+}
 async function refreshState() {
   el('refresh').disabled = true;
-  try { showState(await getJson('/api/v1/jeju/state')); }
-  catch {
-    for (const key of metricKeys) el(key).textContent = '—';
-    status('state-status', '수급 자료를 읽지 못했습니다. 다시 읽기로 재시도하세요.', true);
-  } finally { el('refresh').disabled = false; }
+  try { live(await getJson('/api/v1/jeju/state')); }
+  catch { if (mode === 'latest') blank('수급 자료를 읽지 못했습니다. 다시 읽기로 재시도하세요.'); }
+  finally { el('refresh').disabled = false; }
 }
 function connectState() {
   clearTimeout(reconnectTimer);
@@ -195,16 +203,100 @@ function connectState() {
     if (socket !== connection) return;
     try {
       const envelope = JSON.parse(event.data);
-      if (envelope.type === 'snapshot' && envelope.data) showState(envelope.data);
-      else if (envelope.type === 'status') status('state-status', '원천 연결 확인 중 · 표시 값은 마지막 수신 관측입니다.', true);
-    } catch { status('state-status', '관측 메시지를 읽지 못했습니다. 다시 읽기로 확인하세요.', true); }
+      if (envelope.type === 'snapshot' && envelope.data) live(envelope.data);
+      else if (envelope.type === 'status' && mode === 'latest') status('state-status', '원천 연결 확인 중 · 표시 값은 마지막 수신 관측입니다.', true);
+    } catch { if (mode === 'latest') status('state-status', '관측 메시지를 읽지 못했습니다. 다시 읽기로 확인하세요.', true); }
   };
   connection.onclose = () => {
     if (document.hidden || socket !== connection) return;
-    status('state-status', '갱신 연결 재시도 중 · 표시 값은 마지막 수신 관측입니다.', true);
+    if (mode === 'latest') status('state-status', '갱신 연결 재시도 중 · 표시 값은 마지막 수신 관측입니다.', true);
     reconnectTimer = setTimeout(connectState, 5000);
   };
 }
+const kst = (time) => new Date(time).toLocaleString('ko-KR', {timeZone:'Asia/Seoul', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
+const kstDate = (days = 0) => new Date(Date.now() + 9 * 3600000 + days * 86400000).toISOString().slice(0, 10);
+const mw = (value) => Number.isFinite(value) ? `${value.toLocaleString('ko-KR', {maximumFractionDigits:1})} MW` : '—';
+function stop() { clearInterval(playTimer); playTimer = 0; el('play').textContent = '재생'; }
+function setRange(count) { const range = el('history-time'); range.max = Math.max(count - 1, 0); range.value = range.max; range.disabled = el('play').disabled = !count; }
+function showPoint() {
+  const point = scenario?.points[el('history-time').value], s = point?.scenario;
+  el('history-label').textContent = point ? `${kst(point.observed_at)} KST · ${dayNote}` : dayNote || '—';
+  el('sim-net').textContent = point ? `${mw(point.baseline.net_load_mw)} → ${mw(s.net_load_mw)}` : '—';
+  el('sim-before').textContent = mw(s?.residual_before_ess_mw); el('sim-after').textContent = mw(s?.residual_after_ess_mw);
+  el('sim-ess').textContent = s ? `${mw(s.charge_mw)} / ${mw(s.discharge_mw)}` : '—';
+  el('sim-soc').textContent = Number.isFinite(s?.soc_percent) ? `${s.soc_percent.toFixed(1)} %` : '—';
+}
+async function pick() {
+  if (mode === 'scenario') return showPoint();
+  const index = Number(el('history-time').value), mine = ++seq;
+  selectedAt = times[index]; if (!selectedAt) return;
+  el('history-label').textContent = `${kst(selectedAt)} KST · ${index + 1}/${times.length} · ${dayNote}`;
+  try {
+    const data = await getJson(`/api/v1/jeju/state?at=${encodeURIComponent(selectedAt)}`);
+    if (shouldApply(mode, selectedAt, data.observed_at, false, seq, mine)) showState(data);
+  } catch (error) { if (mode === 'history' && mine === seq) blank(error.message === 'HTTP 404' ? `${kst(selectedAt)} KST · 해당 시각 관측 없음` : '과거 관측을 읽지 못했습니다.'); }
+}
+async function loadDay() {
+  const mine = ++seq, date = el('history-date').value, day = kstDay(date);
+  stop(); times = []; scenario = null; dayNote = ''; setRange(0); showPoint();
+  blank(day ? '관측 시각 불러오는 중…' : '날짜를 고르세요.', !day);
+  if (!day) return;
+  try {
+    const list = await getJson(`/api/v1/jeju/timeline?start=${encodeURIComponent(day.start)}&end=${encodeURIComponent(day.end)}`);
+    if (mine !== seq) return;
+    times = list; dayNote = !list.length ? '자료 없음' : date === kstDate() ? `진행 중 · ${list.length}개 시각` : `${list.length}개 시각 · 누락 ${288 - list.length}`;
+    if (mode === 'scenario') { showPoint(); status('state-status', list.length ? '배율·가정을 정하고 실행하세요.' : `${date} 자료 없음`, !list.length); return; }
+    setRange(list.length);
+    if (list.length) pick(); else { el('history-label').textContent = dayNote; blank(`${date} 자료 없음`); }
+  } catch { if (mine === seq) status('state-status', '관측 시각을 읽지 못했습니다.', true); }
+}
+el('play').onclick = () => { // ponytail: each step supersedes the last /state?at, so replies slower than 1 s show nothing while playing; prefetch the day if that matters
+  if (playTimer) return stop();
+  const range = el('history-time');
+  if (+range.value >= +range.max) { range.value = 0; pick(); }
+  el('play').textContent = '정지';
+  playTimer = setInterval(() => { if (+range.value >= +range.max) return stop(); range.value = +range.value + 1; pick(); }, 1000);
+};
+el('history-time').onchange = pick;
+el('history-date').value = kstDate(-1); el('history-date').max = kstDate();
+el('history-date').onchange = loadDay;
+el('assume').onchange = (event) => { el('assumptions').disabled = !event.target.checked; };
+for (const radio of document.querySelectorAll('[name=mode]')) radio.onchange = () => {
+  mode = radio.value; seq += 1; stop();
+  el('state-kind').textContent = {latest:'실제 관측 · 최신', history:'실제 관측 · 과거 KST 시각', scenario:'시뮬레이션 · 실측 아님'}[mode];
+  el('time-controls').hidden = mode === 'latest'; el('scenario-form').hidden = el('scenario-metrics').hidden = mode !== 'scenario'; el('metrics').hidden = mode === 'scenario';
+  el('state-source').textContent = mode === 'scenario' ? '제주 집계 관측에 배율과 사용자 가정을 적용한 계산 · 실측·예측 아님' : '지역 집계이며 개별 시설의 실측 출력이 아닙니다.';
+  if (mode !== 'latest') return loadDay();
+  refreshState();
+  if (lastLive) showState(lastLive);
+};
+el('scenario-form').onsubmit = async (event) => {
+  event.preventDefault();
+  if (!times.length) await loadDay();
+  if (!times.length || mode !== 'scenario') return;
+  const mine = ++seq, value = (id) => Number(el(id).value), start = times[0], end = new Date(Date.parse(times.at(-1)) + 300000).toISOString();
+  const body = {run_id:`web-${Date.now()}`, start, end, scales:{demand:value('scale-demand'), wind:value('scale-wind'), solar:value('scale-solar')}};
+  if (el('assume').checked) {
+    const hvdc = [1, 2, 3].map((n) => {
+      const power = value(`hvdc-${n}-mw`), available = n < 3 || el('hvdc-3-available').checked;
+      return {id:`hvdc-${n}`, power_mw:available ? power : 0, available, min_mw:Math.min(0, power), max_mw:Math.max(0, power)};
+    });
+    body.dispatch = [];
+    for (let time = Date.parse(start); time < Date.parse(end); time += 300000) body.dispatch.push({observed_at:new Date(time).toISOString(), nonrenewable_mw:value('g-mw'), hvdc});
+    body.ess = {capacity_mwh:value('ess-mwh'), charge_limit_mw:value('ess-mw'), discharge_limit_mw:value('ess-mw'), charge_efficiency:.9, discharge_efficiency:.9, initial_mwh:value('ess-mwh') * value('ess-soc') / 100, min_mwh:0, max_mwh:value('ess-mwh')};
+  }
+  stop(); scenario = null; setRange(0); showPoint(); status('state-status', '시뮬레이션 계산 중…');
+  try {
+    const response = await fetch('/api/v1/jeju/simulate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal:AbortSignal.timeout(60000)});
+    const result = response.ok ? await response.json() : null;
+    if (mine !== seq || mode !== 'scenario') return;
+    if (!result) return status('state-status', response.status === 429 ? '다른 계산 진행 중 · 잠시 후 재시도' : `시뮬레이션 실패 · HTTP ${response.status}`, true);
+    const missing = result.missing_intervals || [];
+    scenario = result; setRange(result.points.length); showPoint();
+    status('state-status', `시뮬레이션 ${result.status}${missing.length ? ` · 누락 ${missing.length}개: ${missing.slice(0, 3).map(kst).join(', ')} KST` : ''}`, result.status === 'incomplete');
+    el('state-source').textContent = `시뮬레이션 · 실측 아님 · 모델 ${result.model_version} · 원천 ${result.input?.source_version || '—'} · 입력 G·HVDC·ESS는 사용자 가정`;
+  } catch { if (mine === seq) status('state-status', '시뮬레이션 응답을 읽지 못했습니다.', true); }
+};
 function stationDistance(coordinates, station) {
   if (!coordinates) return Infinity;
   const [lon, lat] = coordinates.map(THREE.MathUtils.degToRad);
@@ -322,7 +414,7 @@ function disconnectWind() {
 function refreshWind() { disconnectWind(); connectWind(); }
 el('wind-follow').onchange = showWind;
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stopDemo(); clearTimeout(reconnectTimer); disconnectWind(); socket?.close(); }
+  if (document.hidden) { stopDemo(); stop(); clearTimeout(reconnectTimer); disconnectWind(); socket?.close(); }
   else { showWind(); connectWind(); render(); refreshState(); if (!socket || socket.readyState > 1) connectState(); }
 });
 el('refresh').onclick = () => { refreshState(); refreshWind(); };

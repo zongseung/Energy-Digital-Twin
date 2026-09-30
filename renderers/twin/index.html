@@ -52,8 +52,22 @@
     </aside>
   </main>
   <footer class="state-panel">
-    <div class="state-heading"><h2>제주 전체 수급 <span class="muted">실제 관측</span></h2><span id="state-status" role="status">불러오는 중</span><button id="refresh">다시 읽기</button></div>
+    <div class="state-heading"><h2>제주 전체 수급 <span id="state-kind" class="muted">실제 관측 · 최신</span></h2><span id="state-status" role="status">불러오는 중</span><button id="refresh">다시 읽기</button></div>
+    <div class="time-bar">
+      <fieldset><legend>표시</legend><label><input type="radio" name="mode" value="latest" checked>최신</label><label><input type="radio" name="mode" value="history">과거</label><label><input type="radio" name="mode" value="scenario">시나리오</label></fieldset>
+      <div id="time-controls" hidden><input id="history-date" type="date" aria-label="날짜 (KST)"><input id="history-time" type="range" min="0" max="0" value="0" disabled aria-label="시각 (KST)"><output id="history-label" for="history-time">—</output><button id="play" type="button" disabled>재생</button></div>
+    </div>
+    <form id="scenario-form" hidden>
+      <label>수요 배율<input id="scale-demand" type="number" min="0" step="0.01" value="1.10" required></label><label>풍력 배율<input id="scale-wind" type="number" min="0" step="0.01" value="0.80" required></label><label>태양광 배율<input id="scale-solar" type="number" min="0" step="0.01" value="1.00" required></label>
+      <fieldset id="assumptions" disabled><legend><label><input id="assume" type="checkbox">가정 공급·ESS</label></legend>
+        <label>도내 비재생 G MW<input id="g-mw" type="number" min="0" step="any" required></label><label>HVDC#1 MW<input id="hvdc-1-mw" type="number" step="any" required></label><label>HVDC#2 MW<input id="hvdc-2-mw" type="number" step="any" required></label><label>HVDC#3 MW<input id="hvdc-3-mw" type="number" step="any" required></label><label><input id="hvdc-3-available" type="checkbox" checked>#3 가용</label>
+        <label>ESS MWh<input id="ess-mwh" type="number" min="0.01" step="any" required></label><label>ESS MW<input id="ess-mw" type="number" min="0" step="any" required></label><label>초기 SOC %<input id="ess-soc" type="number" min="0" max="100" step="any" required></label>
+        <p class="muted">사용자 가정 · 가정 효율 0.9(충전·방전) · HVDC 양수 수입/음수 수출</p>
+      </fieldset>
+      <button>시뮬레이션 실행</button>
+    </form>
     <dl id="metrics"><div><dt>수요</dt><dd id="demand_mw">—</dd></div><div><dt>공급 용량</dt><dd id="supply_capacity_mw">—</dd></div><div><dt>풍력</dt><dd id="wind_mw">—</dd></div><div><dt>태양광</dt><dd id="solar_mw">—</dd></div><div><dt>재생에너지 합계</dt><dd id="renewable_total_mw">—</dd></div></dl>
+    <dl id="scenario-metrics" hidden><div><dt>순부하 기준→변경</dt><dd id="sim-net">—</dd></div><div><dt>ESS 전 잔차 (+부족/−잉여)</dt><dd id="sim-before">—</dd></div><div><dt>ESS 충전 / 방전</dt><dd id="sim-ess">—</dd></div><div><dt>SOC</dt><dd id="sim-soc">—</dd></div><div><dt>ESS 후 잔차</dt><dd id="sim-after">—</dd></div></dl>
     <p id="state-source" class="muted">지역 집계이며 개별 시설의 실측 출력이 아닙니다.</p>
   </footer>
 </body>

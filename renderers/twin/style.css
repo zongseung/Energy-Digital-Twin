@@ -39,3 +39,11 @@
 .state-heading h2 { font-size:var(--text-sm); }
 #metrics dd { font-size:var(--text-lg); }
 @media(max-width:767px),(max-height:600px) { .map-region { min-height:var(--map-min-h); } .sidebar { padding:var(--space-5); } .map-controls { top:var(--space-3); left:var(--space-3); right:var(--space-3); gap:var(--space-1); } .map-controls button { padding:var(--space-2); } .topbar { gap:var(--space-2); } .topbar h1 { font-size:var(--text-md); } .topbar a { margin-left:auto; font-size:var(--text-xs); } }
+.time-bar,.time-bar fieldset,#time-controls,#scenario-form,#assumptions,#scenario-metrics { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-3); min-width:0; }
+.time-bar { margin-top:var(--space-2); } #scenario-form { margin-top:var(--space-2); } #scenario-metrics { gap:var(--space-2) var(--space-6); margin-top:var(--space-2); }
+.state-panel fieldset { margin:0; padding:0; border:0; } .state-panel legend { float:left; padding:0; color:var(--muted); font-size:var(--text-xs); }
+.state-panel label { display:inline-flex; align-items:center; gap:var(--space-2); min-height:44px; margin:0; } .state-panel input { accent-color:var(--accent); }
+.state-panel input[type=number],#history-date { width:6.5em; min-height:36px; padding:0 var(--space-2); background:var(--surface-raised); color:var(--text); border:1px solid var(--control-border); border-radius:var(--radius-sm); }
+#time-controls { flex:1 1 20rem; } #history-date { width:auto; color-scheme:dark; } #history-time { flex:1 1 10rem; min-width:0; } #history-label,#assumptions p { font-size:var(--text-xs); } #assumptions p { flex-basis:100%; }
+#scenario-metrics dd { font-size:var(--text-md); font-variant-numeric:tabular-nums; margin:0; }
+@media(min-width:768px) and (min-height:601px) { .state-panel { max-height:45dvh; overflow-y:auto; } }
