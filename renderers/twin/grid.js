@@ -106,7 +106,7 @@ export async function loadGrid() {
   const roofBasis = {gable_house:'박공 20° 추정', gable_shed:'박공 10° 추정', flat_parapet:'평지붕·난간 추정'};
   gltf.scene.traverse((node) => {
     if (!node.isMesh) return;
-    const layer = node.name.startsWith('building_') ? 'buildings' : node.name === 'ocean_surface' ? 'sea' : /terrain|shore|landcover|road/.test(node.name) ? 'terrain' : null;
+    const layer = /^(building|landmark)_/.test(node.name) ? 'buildings' : node.name === 'ocean_surface' ? 'sea' : /terrain|shore|landcover|road/.test(node.name) ? 'terrain' : null;
     if (layer) layers.get(layer).push(node);
     const b = layer === 'buildings' && buildings.get(node.parent?.name);
     if (!b) return;

@@ -31,6 +31,7 @@ from trimesh.visual.material import PBRMaterial
 from trimesh.visual.texture import TextureVisuals
 
 from build import normals, sha, translation
+from landmarks import add_landmarks
 from photo_assets import load_placements, place_asset
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -469,6 +470,8 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
     apply_imagery(scene, imagery_path, imagery_metadata, grid["coordinateFrame"])
     sea = sea_metadata(scene, grid)
     buildings, building_camera = add_buildings(scene, grid["coordinateFrame"])
+    landmarks = add_landmarks(scene, grid["coordinateFrame"])
+    landmark_by_id = {r["id"]: r for r in landmarks["records"]}
     grid_assumptions, wind_assumptions = local_assumptions(grid, wind)
     terrain = {**grid["terrain"], "materials": "Georeferenced VWorld Satellite JPEG mapped to the unchanged DSM and WBM ocean mesh via EPSG:3857 UV coordinates"}
     terrain.pop("palette", None)
@@ -490,6 +493,10 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
         "pv": grid["cameras"]["pv"],
         "wind": wind["cameras"]["inspect"],
         "buildings": building_camera,
+        **{name: {"position": (np.asarray(landmark_by_id[i]["position"]) + offset).tolist(),
+                  "target": (np.asarray(landmark_by_id[i]["position"]) + [0, lift, 0]).tolist(), "fov": 48, "near": .15, "far": 70000}
+           for name, i, offset, lift in (("lighthouse", "sinchang_white_lighthouse", [38, 20, 48], 7),
+                                         ("pavilion", "singyemul_park_pavilion", [40, 22, 55], 3)) if i in landmark_by_id},
         "sea": {"position": [-1100, 230, -600], "target": [0, 25, -1550], "fov": 48, "near": .15, "far": 70000},
         "terrain": {"position": [peak[0]-1200, peak[1]+700, peak[2]+1500],
                     "target": [peak[0], peak[1]-100, peak[2]], "fov": 48, "near": .5, "far": 70000},
@@ -497,7 +504,7 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
     manifest = {
         "schema_version": 1, "created_at": datetime.now(timezone.utc).isoformat(), "units": "m",
         "coordinateFrame": grid["coordinateFrame"], "facilities": facilities, "routes": routes,
-        "coast": coast, "terrain": terrain, "buildings": buildings, "sea": sea, "physical_line": grid["physical_line"],
+        "coast": coast, "terrain": terrain, "buildings": buildings, "landmarks": landmarks, "sea": sea, "physical_line": grid["physical_line"],
         "cameras": cameras, "assetassumptions": grid_assumptions,
         "wind_assetassumptions": wind_assumptions,
         "source_assetassumptions": {"grid": grid["assetassumptions"], "wind": wind["assetassumptions"]},
@@ -521,7 +528,11 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
                "Changes: original georeferenced mosaic restored to both existing land DSM and unchanged WBM sea geometry in EPSG:3857 UV coordinates.\n" +
                "\n--- Building source ---\nVWorld LT_C_BLDGINFO — https://api.vworld.kr/req/data\n" +
                "VWorld provider terms; source attribution required. Prepared Sinchang footprints (all 2661); provider heights where positive, otherwise floors x 3 m or one 3.5 m storey (recorded per building).\n" +
-               "Roof imagery: VWorld Satellite WMTS z19 crops (공간정보 오픈플랫폼(브이월드) / 국토교통부), local preview cache. Roof forms, parapets, facade textures and windows are procedural estimates, not a textured 3D building reconstruction. Ground is an approximate local lower-percentile Copernicus DSM value, not surveyed ground or DTM.\n")
+               "Roof imagery: VWorld Satellite WMTS z19 crops (공간정보 오픈플랫폼(브이월드) / 국토교통부), local preview cache. Roof forms, parapets, facade textures and windows are procedural estimates, not a textured 3D building reconstruction. Ground is an approximate local lower-percentile Copernicus DSM value, not surveyed ground or DTM.\n" +
+               "\n--- Landmark references ---\n" +
+               "".join(f"{s['title']} — {s['author']}, Wikimedia Commons ({s['source_page']}), {s['license']}. Used only as shape/proportion reference; not a texture.\n"
+                       for s in landmarks["sources"] if s["kind"] == "shape_proportion_photo") +
+               "Landmark positions from VWorld Satellite z19 imagery; geometry is photo-referenced code modelling (estimated, not surveyed).\n")
     for facility in facilities:
         if "photo_asset" in facility:
             photo = facility["photo_asset"]

@@ -166,7 +166,7 @@ def main():
     manifest = json.loads(args.manifest.resolve(strict=True).read_text()) if args.manifest else None
     views = [value.strip() for value in args.views.split(',')] if args.views else None
     if views is not None and (not 1 <= len(views) <= 5 or len(set(views)) != len(views) or
-                              any(view not in {'inspect', 'overview', 'array', 'network', 'hvdc', 'pv', 'terrain', 'buildings', 'sea'} for view in views)):
+                              any(view not in {'inspect', 'overview', 'array', 'network', 'hvdc', 'pv', 'terrain', 'buildings', 'lighthouse', 'pavilion', 'sea'} for view in views)):
         raise ValueError('Choose one to five distinct supported camera views')
     if views and (not manifest or any(view not in manifest.get('cameras', {}) for view in views)):
         raise ValueError('Requested camera is absent from the manifest')

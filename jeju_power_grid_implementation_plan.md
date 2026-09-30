@@ -236,6 +236,11 @@
 - [x] 다운로드한 TRELLIS.2/DINOv3/RMBG/decoder를 실제 Commons 신창09 원본으로 GPU0에서 실행했다. GLB97,616면 생성·검증 성공, 사진 전경 등대가 주 대상이어서 터빈 자산으로 채택하지 않았다 (`.omo/evidence/local-photo-inference.md`).
 - [ ] 모델 기반 실제 터빈 복원·사진별 시설 정합·개별 계측·정밀 측량·Unity/Unreal·실시간 서버 스트리밍은 미완료다. 이 실행 기록으로 전체 Task5/6을 완료로 처리하지 않는다.
 
+**신창 실사 기반 건물·랜드마크 (2026-09-30):**
+
+- [x] 공개 원천 중 신창 실사 3D 건물은 없음을 확인(`exa-results/jeju-real-building-3d-sources-2026-09-30.md`). 원천 윤곽 2,661동을 규칙 기반 박공(처마)·평지붕(난간)·층별 창호와 VWorld z19 실제 지붕 영상으로 생성하고, 등대·싱계물공원 정자를 사진 참고 코드 모델로 추가했다. 높이는 원천 623·층수×3 m 887·기본 1층 1,151동으로 건물마다 구분한다. 웹 375/1280·GPU1 Kit 캡처 통과 (`var/verification/buildings/`, `var/rendering/omniverse/buildings-01/`).
+- [ ] 항공사진 사진측량으로 건물 높이·지붕 형태를 실측값으로 교체(국토지리정보원 프레임 대기). 외벽 실사는 드론/현장 다중시점 촬영이 필요하다.
+
 ## Task 7: Integration verification and handoff
 
 **Files:** `tests/integration.rs`, `README.md`, 확정된 제품 파일.

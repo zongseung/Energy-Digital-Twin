@@ -110,7 +110,7 @@ async function startScene() {
     };
     new ResizeObserver(resize).observe(el('viewport')); resize();
     grid = await loadGrid();
-    el('buildings-count').textContent = `단순 높이 모형 ${grid.data.buildings.count.toLocaleString('ko-KR')}개 · 비교용`;
+    el('buildings-count').textContent = ` · ${grid.data.buildings.count.toLocaleString('ko-KR')}동 + 랜드마크 ${grid.data.landmarks?.count || 0}곳`; el('buildings-count').hidden = false;
     populate();
     showWind();
     if (contextLost) return;
@@ -155,7 +155,7 @@ el('rotor-demo').onchange = syncDemo;
 el('inspect').onclick = inspect;
 el('overview').onclick = () => { enableLayer('terrain'); cameraAt(grid.data.cameras.overview); el('scene-title').textContent = '탐라–한림 일부 · 실제 영상 + DSM / 시설 통합'; };
 el('wind-view').onclick = () => { enableLayer('wind'); enableLayer('terrain'); enableLayer('sea'); cameraAt(grid.data.cameras.array); el('scene-title').textContent = '탐라 풍력과 주변 실제 지형'; };
-el('buildings-view').onclick = () => { enableLayer('terrain'); cameraAt(grid.data.cameras.buildings); el('scene-title').textContent = '신창 마을 · 항공영상 / 실사 3D 건물 미연결'; };
+el('buildings-view').onclick = () => { enableLayer('terrain'); cameraAt(grid.data.cameras.buildings); el('scene-title').textContent = '신창 마을 · 윤곽·지붕영상 실제 / 형태·외벽 추정'; };
 el('sea-view').onclick = () => { enableLayer('sea'); enableLayer('wind'); enableLayer('terrain'); cameraAt(grid.data.cameras.sea); el('scene-title').textContent = '풍력·바다 · 기존 VWorld 영상 / 조위·수심 미반영'; };
 el('terrain-relief').onclick = () => { enableLayer('terrain'); cameraAt(grid.data.cameras.terrain); el('scene-title').textContent = `실제 DSM 고도 · 구역 최고 약 ${Math.round(grid.data.terrain.height_range_m[1])} m / 수직 배율 1:1`; };
 el('terrain-view').onclick = () => { enableLayer('transmission'); enableLayer('terrain'); choose(grid.records.find((r) => r.id === 'hub:power_line:3596')); };

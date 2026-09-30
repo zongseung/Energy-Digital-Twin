@@ -123,3 +123,9 @@ node var/verification/buildings/buildings-qa.mjs   # 건물 1280/375
 GPU 입력15시설 root(풍력10/PV3/변전소1/선로1)는 USD418메시/922,830면으로 변환되어 단위·ID·위치·독립 rotor와 재열기를 검증한다. [Kit 재실행 방법](omniverse-twin.md)을 참고한다. 이전 분리된 `twin-03`/`grid-01` 산출물은 과거 검증 기록으로 보존한다.
 
 2026-09-30 추가 검증: WS 단일 연결71초/43지점 프레임3회/브라우저 기상 HTTP조회0회, PC·모바일 관측 표시 및 추정 회전10기/저풍속·정지풍속·지연·단절 정지/복구 검사 통과. 재실행: `node tests/wind-estimate.mjs`, `node var/verification/weather-ws/client-lifecycle.mjs`, `node var/verification/weather-ws/rotor-browser-qa.mjs`. 상세: `.omo/evidence/weather-ws-qa.md`, `.omo/evidence/weather-ws-review.md`, `.omo/evidence/wind-estimate-review.md`.
+
+## 사진 참고 랜드마크 (2026-09-30)
+
+`renderers/twin/landmarks.py`가 신창 해안 흰 등대(126.169461, 33.345528)와 싱계물공원 L자 기와 정자·육각정을 같은 `scene.glb`의 `landmark_*` 노드로 넣는다. 위치는 VWorld z19 영상에서 직접 찾은 점(근거: `var/rendering/landmarks/evidence/`)이고, 등대 위치는 사진 09 속 탐라 풍력 10기 방위로 촬영점을 역산해 교차 확인했다. 치수는 Commons 사진 01·09의 사람(1.7 m 가정) 비례로 추정했다(±10%, 등대 14.2 m). 사진은 형태 참고로만 쓰고 텍스처로 쓰지 않았으며 CREDITS에 출처를 적었다. 지붕 곡선·기와·난간 세부는 평면 근사다. 건물 레이어에 포함되며 manifest 카메라 `lighthouse`·`pavilion`이 근접 시점이다.
+
+GPU1 Kit RTX 재캡처: `var/rendering/omniverse/buildings-01/`(buildings·lighthouse·pavilion·overview, 44초). 건물·랜드마크 아래 지형 영상은 기존 약 4 m/px라 근접 시 흐리다.
