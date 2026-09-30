@@ -102,8 +102,9 @@ def add_onshore_wind(scene: trimesh.Scene, frame: dict, height_at) -> dict:
             else f"default; OSM plant_output {props['plant_output']!r} is not a Hankyung nameplate",
             "rated_power_kw": c["rated_power_kw"], "rotor_diameter_m": round(90 * k, 2), "hub_height_m": round(81.8 * k, 2),
             "source_properties": props, "dimensions_estimated": True, "model_matching": "unverified", "telemetry": None,
-            **({"generation_candidate": {"plant_id": 51, "series": "/local/facility/generation_51.json",
-                                          "identity": "unconfirmed: plant-level series, not per turbine"}} if c["farm"] == "한경풍력" else {})})
+            **({"generation": {"plant_id": 51, "api": "/api/v1/jeju/pv/generation?plant_id=51",
+                                "scope": "farm total (KOSPO data.go.kr 15043410 matches plant 51); unit-to-position mapping "
+                                         "unpublished, so no value belongs to this turbine"}} if c["farm"] == "한경풍력" else {})})
     return {"count": len(facilities), "facilities": facilities,
             "classes": {n: {"rotor_diameter_m": round(90 * c["scale"], 2), "hub_height_m": round(81.8 * c["scale"], 2), "tower_top_m": round(80 * c["scale"], 2),
                             **{key: c[key] for key in ("rated_power_kw", "farm", "stage", "basis")}} for n, c in CLASSES.items()},

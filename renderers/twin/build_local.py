@@ -31,10 +31,11 @@ from trimesh.visual.material import PBRMaterial
 from trimesh.visual.texture import TextureVisuals
 
 from build import normals, sha, translation
-from groundcover import add_groundcover
+from harbours import add_harbours
 from landmarks import add_landmarks
-from roads import add_roads
-from vegetation import add_vegetation
+from onshore_wind import add_onshore_wind
+from prepare_imagery import HARBOURS
+from roads import add_roads, to_scene
 from photo_assets import load_placements, place_asset
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -150,21 +151,23 @@ def imagery_material(image_path: Path, name: str) -> PBRMaterial:
 
 
 def apply_imagery(scene: trimesh.Scene, image_path: Path, metadata: dict, frame: dict,
-                  detail_path: Path | None = None, detail_metadata: dict | None = None) -> int:
+                  details: list[tuple[str, Path, dict]] = ()) -> dict[str, int]:
     """Texture the existing DSM vertices with their actual map positions.
 
-    Land and sea triangles wholly inside the detail mosaic and clear of its failed tiles move, unchanged, to
-    `<name>_detail` meshes with the detail texture. Returns the number of moved triangles.
+    details: [(name, texture, metadata)] z17 mosaics in priority order. Land and sea triangles wholly inside a mosaic and
+    clear of its failed tiles move, unchanged, to `<mesh>_detail_<name>` meshes with that texture; the first mosaic that
+    holds a triangle wins. Returns the moved triangle count per mosaic name.
     """
     assert metadata["crs"] == "EPSG:3857"
     west, south, east, north = map(float, metadata["bounds"])
     assert west < east and south < north
     material = imagery_material(image_path, "georeferenced_imagery")
-    if detail_path:
+    prepared = []
+    for detail_name, path, detail_metadata in details:
         assert detail_metadata["crs"] == "EPSG:3857"
-        detail_material = imagery_material(detail_path, "georeferenced_imagery_z17")
-        failed = shapely.union_all([tile_box(t) for t in detail_metadata["failed_tiles"]])
-    moved = 0
+        prepared.append((detail_name, imagery_material(path, f"georeferenced_imagery_z17_{detail_name}"), detail_metadata["bounds"],
+                         shapely.union_all([tile_box(t) for t in detail_metadata["failed_tiles"]])))
+    moved = {detail_name: 0 for detail_name, *_ in prepared}
     for name in list(scene.geometry):
         if name != "ocean_surface" and not name.startswith("terrain_landcover_"):
             continue
@@ -175,19 +178,25 @@ def apply_imagery(scene: trimesh.Scene, image_path: Path, metadata: dict, frame:
         mesh.visual = TextureVisuals(uv=uv, material=material)
         normals(mesh)
         scene.geometry[name] = mesh
-        if not detail_path:
-            continue
-        w, s, e, n = detail_metadata["bounds"]
-        detail_uv = np.column_stack(((mx - w) / (e - w), (my - s) / (n - s)))
-        # ponytail: whole triangle inside the tile-aligned mosaic, not centroid-in-AOI, so detail UVs stay in [0, 1]; edge triangles keep z15.
-        selected = ((detail_uv >= 0) & (detail_uv <= 1)).all(axis=1)[mesh.faces].all(axis=1)
         fx, fy = mx[mesh.faces], my[mesh.faces]
-        selected &= ~shapely.intersects(failed, shapely.box(fx.min(1), fy.min(1), fx.max(1), fy.max(1)))
-        if not selected.any():
+        boxes = shapely.box(fx.min(1), fy.min(1), fx.max(1), fy.max(1))
+        owner, parts = np.full(len(mesh.faces), -1), [(name, uv, material)]
+        for detail_name, detail_material, (w, s, e, n), failed in prepared:
+            detail_uv = np.column_stack(((mx - w) / (e - w), (my - s) / (n - s)))
+            # ponytail: whole triangle inside the tile-aligned mosaic, not centroid-in-AOI, so detail UVs stay in [0, 1]; edge triangles keep z15.
+            selected = (owner < 0) & ((detail_uv >= 0) & (detail_uv <= 1)).all(axis=1)[mesh.faces].all(axis=1)
+            selected &= ~shapely.intersects(failed, boxes)
+            owner[selected] = len(parts)
+            parts.append((f"{name}_detail_{detail_name}", detail_uv, detail_material))
+            moved[detail_name] += int(selected.sum())
+        if (owner < 0).all():
             continue
-        assert not selected.all(), f"{name} lies wholly in the detail area"  # ponytail: never seen; move the whole mesh if it happens
-        for part, mask, part_uv, part_material in ((name, ~selected, uv, material),
-                                                   (name + "_detail", selected, detail_uv, detail_material)):
+        node = scene.graph.geometry_nodes[name][0]
+        transform = scene.graph[node][0]
+        for index, (part, part_uv, part_material) in enumerate(parts):
+            mask = owner == (-1 if index == 0 else index)
+            if not mask.any():
+                continue
             used = np.unique(mesh.faces[mask])
             piece = trimesh.Trimesh(mesh.vertices[used], np.searchsorted(used, mesh.faces[mask]), process=False)
             piece.visual = TextureVisuals(uv=part_uv[used], material=part_material)
@@ -195,9 +204,10 @@ def apply_imagery(scene: trimesh.Scene, image_path: Path, metadata: dict, frame:
             if part == name:
                 scene.geometry[name] = piece
             else:
-                scene.add_geometry(piece, geom_name=part, node_name=part,
-                                   transform=scene.graph[scene.graph.geometry_nodes[name][0]][0])
-        moved += int(selected.sum())
+                scene.add_geometry(piece, geom_name=part, node_name=part, transform=transform)
+        if (owner >= 0).all():  # every triangle moved (a small landcover class): drop the emptied base mesh and its node
+            scene.delete_geometry(name)
+            scene.graph.transforms.remove_node(node)
     return moved
 
 
@@ -540,23 +550,50 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
             "length_endpoints_xyz": placement["length_endpoints_xyz"],
         }
     imagery_metadata = json.loads(imagery_metadata_path.read_text())
-    # Required like the roof atlas: `prepare_imagery.py --terrain-detail` writes it.
+    # Required like the roof atlas: `prepare_imagery.py --terrain-detail` (Sinchang) and `--harbours` write them.
     detail_dir = detail_imagery_path or ROOT / "var/rendering/imagery-detail"
-    detail_metadata = json.loads((detail_dir / "manifest.json").read_text())
-    assert sha(detail_dir / "texture.jpg") == detail_metadata["sha256"]
-    moved = apply_imagery(scene, imagery_path, imagery_metadata, grid["coordinateFrame"],
-                          detail_dir / "texture.jpg", detail_metadata)
+    harbour_index = ROOT / "var/rendering/imagery-harbours/index.json"
+    harbour_mosaics = json.loads(harbour_index.read_text())
+    mosaics = [("sinchang", detail_dir / "texture.jpg", detail_dir / "manifest.json")] + [
+        (m["name"].replace("-", "_"), harbour_index.parent / m["path"], harbour_index.parent / m["manifest"]) for m in harbour_mosaics["mosaics"]]
+    details = [(name, texture, json.loads(meta.read_text())) for name, texture, meta in mosaics]
+    assert all(sha(texture) == metadata["sha256"] for _, texture, metadata in details)
+    moved = apply_imagery(scene, imagery_path, imagery_metadata, grid["coordinateFrame"], details)
     sea = sea_metadata(scene, grid)
     buildings, building_camera = add_buildings(scene, grid["coordinateFrame"])
     landmarks = add_landmarks(scene, grid["coordinateFrame"])
     landmark_by_id = {r["id"]: r for r in landmarks["records"]}
     height_at = surface_height(scene)
     roads = add_roads(scene, grid["coordinateFrame"], height_at)
-    vegetation = add_vegetation(scene, grid["coordinateFrame"], height_at)
-    groundcover = add_groundcover(scene, grid["coordinateFrame"], height_at)
+    harbours = add_harbours(scene, grid["coordinateFrame"], height_at)
+    onshore = add_onshore_wind(scene, grid["coordinateFrame"], height_at)
+    assert len(onshore["facilities"]) == 10 and not {f["node"] for f in onshore["facilities"]} & {f["node"] for f in facilities}
+    for facility in onshore["facilities"]:
+        facility["status"] = "onshore_estimated_geometry_real_position"
+        facility["dimension_rows"] = [
+            ["단지 / 등급", f"{facility['farm']} · {facility['rated_power_kw'] / 1000:g} MW (추정: 영상 크기·OSM 출력 태그, 미검증)"],
+            ["회전자 직경 / 허브 높이", f"{facility['rotor_diameter_m']:g} m / {facility['hub_height_m']:g} m (추정)"],
+            ["형상 근거", "원천 GIS 위치 / 탐라 원형 균일 축척 추정 형상"],
+            ["개별 발전량", "— (plant 51 단지 합계만, 호기 위치 미공개)" if "generation" in facility else "— (공개 자료 없음)"]]
+    facilities += onshore["facilities"]
+    # Generation stays on the data server: the bridge serves it over HTTP/WS; this is only the facility -> plant mapping.
+    generation = {"api": "/api/v1/jeju/pv/generation", "history": "/api/v1/jeju/pv/generation?plant_id=51&start=&end=", "ws": "/api/v1/jeju/pv/ws",
+                  "facility_plants": {f["id"]: f["generation"]["plant_id"] for f in onshore["facilities"] if "generation" in f}, "farm_level": True,
+                  "notes": ["Plant 51 (DB name 'Hangyoung') is not yet exposed by the bridge (the API answers plant_not_found); only plant 3 is.",
+                            "The KOSPO public dataset 한국남부발전(주)_한경풍력발전실적 (data.go.kr 15043410, 단계 1 = 1~4호기, 단계 2 = 5~9호기) "
+                            "matches DB plant 51: hourly 단계 1 + 2 sums give the same 106,608 hours, label window 2013-01-01 01:00 - "
+                            "2025-03-01 00:00 KST, no negatives and the same 23,780 kWh maximum (renderers/twin/generation.py; aggregate "
+                            "check, the DB has no nulls where the CSV has 45 null hours).",
+                            "Values are farm totals for 한경풍력, not per turbine: the unit-to-position mapping is unpublished, so every "
+                            "mapped turbine shows the same farm series. The two 신창소규모풍력 turbines have no series."]}
+    # Green layers are tiled data drawn near the camera by the web viewer (`green_tiles.py` writes them); the GLB holds none.
+    green_index = ROOT / "var/rendering/local/green/index.json"
+    index = json.loads(green_index.read_text())
+    green = {"index": "/local/green/index.json", "sha256": sha(green_index), "tile_count": len(index["tiles"]),
+             "row_source": index["row_source"], "sources": index["sources"], "limits": index["limits"]}
     grid_assumptions, wind_assumptions = local_assumptions(grid, wind)
     terrain = {**grid["terrain"], "materials": "Georeferenced VWorld Satellite JPEG mapped to the unchanged DSM and WBM ocean mesh via EPSG:3857 UV coordinates; "
-               "land and coastal sea triangles inside the Sinchang z17 mosaic use it (~1 m/px) as *_detail meshes"}
+               f"land and coastal sea triangles wholly inside the Sinchang and {len(mosaics) - 1} harbour z17 mosaics use them (~1.2 m/px) as *_detail_<mosaic> meshes"}
     terrain.pop("palette", None)
     terrain["vertical_exaggeration"] = 1
     peak, peak_lon_lat = terrain_focus(grid_scene, grid["coordinateFrame"])
@@ -568,6 +605,7 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
     glb = output / "scene.glb"
     scene.export(glb)
     center = np.mean(box, axis=0)
+    hallim = to_scene([HARBOURS["hallim"][0]], [HARBOURS["hallim"][1]], grid["coordinateFrame"])[0]
     cameras = {
         "inspect": grid["cameras"]["inspect"],
         "overview": {"position": [float(center[0]-16000), float(center[1]+18000), float(center[2]+18000)],
@@ -581,13 +619,21 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
            for name, i, offset, lift in (("lighthouse", "sinchang_white_lighthouse", [38, 20, 48], 7),
                                          ("pavilion", "singyemul_park_pavilion", [40, 22, 55], 3)) if i in landmark_by_id},
         "sea": {"position": [-1100, 230, -600], "target": [0, 25, -1550], "fov": 48, "near": .15, "far": 70000},
+        **{name: {"position": (np.asarray(p) + offset).tolist(), "target": (np.asarray(p) + [0, lift, 0]).tolist(), "fov": 48, "near": .15, "far": 70000}
+           for name, p, offset, lift in (
+               ("hallim_harbour", [hallim[0], 0, hallim[1]], [450, 320, 500], 5),
+               ("sports_pitch", min((r for r in harbours["sports"] if r.get("kind") == "field"), key=lambda r: np.hypot(r["position"][0], r["position"][2]))["position"],
+                [-90, 60, 110], 2),  # the soccer pitch nearest the scene origin (Sinchang)
+               ("onshore_wind", next(f for f in onshore["facilities"] if f["id"] == "hub:power_plant:5674")["position"], [-155, 110, 125], 55))},
         "terrain": {"position": [peak[0]-1200, peak[1]+700, peak[2]+1500],
                     "target": [peak[0], peak[1]-100, peak[2]], "fov": 48, "near": .5, "far": 70000},
     }
     manifest = {
         "schema_version": 1, "created_at": datetime.now(timezone.utc).isoformat(), "units": "m",
         "coordinateFrame": grid["coordinateFrame"], "facilities": facilities, "routes": routes,
-        "coast": coast, "terrain": terrain, "buildings": buildings, "landmarks": landmarks, "roads": roads, "vegetation": vegetation, "groundcover": groundcover, "sea": sea, "physical_line": grid["physical_line"],
+        "coast": coast, "terrain": terrain, "buildings": buildings, "landmarks": landmarks, "roads": roads, "green": green, "harbours": harbours,
+        "onshore_wind": {k: v for k, v in onshore.items() if k != "facilities"} | {"facility_ids": [f["id"] for f in onshore["facilities"]]},
+        "generation": generation, "sea": sea, "physical_line": grid["physical_line"],
         "cameras": cameras, "assetassumptions": grid_assumptions,
         "wind_assetassumptions": wind_assumptions,
         "source_assetassumptions": {"grid": grid["assetassumptions"], "wind": wind["assetassumptions"]},
@@ -597,11 +643,15 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
         "imagery": {"path": source_path(imagery_path), "sha256": sha(imagery_path),
                     "metadata_path": source_path(imagery_metadata_path),
                     "metadata_sha256": sha(imagery_metadata_path), **imagery_metadata},
-        "imagery_detail": {"path": source_path(detail_dir / "texture.jpg"), "sha256": sha(detail_dir / "texture.jpg"),
-                           "metadata_path": source_path(detail_dir / "manifest.json"),
-                           "metadata_sha256": sha(detail_dir / "manifest.json"), **detail_metadata,
-                           "triangle_count": moved, "material": "georeferenced_imagery_z17",
-                           "policy": "Land and sea triangles wholly inside the tile-aligned z17 mosaic and not touching a failed z17 tile move unchanged to <mesh>_detail meshes (terrain_landcover_<class>_detail, ocean_surface_detail); all others keep the z15 mosaic."},
+        "imagery_detail": {
+            "policy": "Land and sea triangles wholly inside a tile-aligned z17 mosaic and not touching its failed tiles move unchanged to <mesh>_detail_<mosaic> meshes "
+                      "(terrain_landcover_<class>_detail_<mosaic>, ocean_surface_detail_<mosaic>); mosaics are tried in list order and the first that holds a triangle wins; all others keep the z15 mosaic.",
+            "triangle_count": sum(moved.values()),
+            "harbour_index": {"path": source_path(harbour_index), "sha256": sha(harbour_index), **{k: v for k, v in harbour_mosaics.items() if k != "mosaics"}},
+            "mosaics": [{"name": name, "path": source_path(texture), "sha256": sha(texture), "metadata_path": source_path(meta), "metadata_sha256": sha(meta),
+                         **{k: v for k, v in metadata.items() if k != "tiles"}, "triangle_count": moved[name],
+                         "material": f"georeferenced_imagery_z17_{name}", "mesh_suffix": f"_detail_{name}"}
+                        for (name, texture, meta), (_, _, metadata) in zip(mosaics, details)]},
         "audit": {"electrical_topology_inferred": False, "terrain_count": 1,
                   "display_route_count": sum(bool(r["paths"]) for r in routes)},
         "files": [{"path": "scene.glb", "bytes": glb.stat().st_size, "sha256": sha(glb)}],
@@ -614,8 +664,8 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
                f"{imagery_metadata['source']} — {imagery_metadata['attribution']}\n" +
                f"{imagery_metadata['documentation']}\n{imagery_metadata['notice']}\n" +
                "Changes: original georeferenced mosaic restored to both existing land DSM and unchanged WBM sea geometry in EPSG:3857 UV coordinates.\n" +
-               f"Sinchang site terrain: {detail_metadata['source']} z{detail_metadata['zoom']} mosaic (~1 m/px, same provider and terms) on land and sea triangles inside it; "
-               "triangles touching failed tiles keep the base mosaic.\n" +
+               f"Sinchang site and harbour areas ({', '.join(name for name, *_ in mosaics[1:])}): {details[0][2]['source']} z17 mosaics "
+               "(~1.2 m/px, same provider, attribution and terms) on land and sea triangles wholly inside them; triangles touching failed tiles keep the base mosaic.\n" +
                "\n--- Building source ---\nVWorld LT_C_BLDGINFO — https://api.vworld.kr/req/data\n" +
                "VWorld provider terms; source attribution required. Prepared Sinchang footprints (all 2661); provider heights where positive, otherwise floors x 3 m or one 3.5 m storey (recorded per building).\n" +
                "Roof imagery: VWorld Satellite WMTS z19 crops (공간정보 오픈플랫폼(브이월드) / 국토교통부), local preview cache. Roof forms, parapets, facade textures and windows are procedural estimates, not a textured 3D building reconstruction. Ground is an approximate local lower-percentile Copernicus DSM value, not surveyed ground or DTM.\n" +
@@ -623,11 +673,24 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
                "".join(f"{s['title']} — {s['author']}, Wikimedia Commons ({s['source_page']}), {s['license']}. Used only as shape/proportion reference; not a texture.\n"
                        for s in landmarks["sources"] if s["kind"] == "shape_proportion_photo") +
                "Landmark positions from VWorld Satellite z19 imagery; geometry is photo-referenced code modelling (estimated, not surveyed).\n" +
-               "\n--- Roads and vegetation ---\n" +
+               "\n--- Roads and green layers ---\n" +
                "".join(dict.fromkeys(f"{s.get('attribution') or s.get('source')} — {s.get('source', '')} ({s.get('license') or 'provider terms apply'})\n"
-                       for s in roads["sources"] + vegetation["sources"] + groundcover["sources"] if s.get("attribution") or s.get("source"))) +
-               "Fields/paddies/grass/field walls: zones from landcover, parcel outlines and 지목 from VWorld 연속지적도 (LP_PA_CBND_BUBUN); crops, rice, grass and 밭담 positions are near-camera estimates in the web viewer; paddy water surface in the GLB.\n" +
-               "Road ribbons: path from source, width/pavement per record status (source or estimated). Vegetation: zones from 2023 landcover; individual trees and greenhouses are procedural estimates.\n")
+                       for s in roads["sources"] + green["sources"] if s.get("attribution") or s.get("source"))) +
+               "Green layers (trees, orchards, greenhouses, fields, paddies, grass, 밭담): zones from 2023 landcover and parcel outlines/지목 from VWorld 연속지적도 (LP_PA_CBND_BUBUN), tiled under /local/green/; individual plants, greenhouses and walls are near-camera estimates drawn by the web viewer, not part of this GLB.\n" +
+               "Road ribbons: path from source, width/pavement per record status (source or estimated).\n" +
+               "\n--- Harbours and sports facilities ---\n" +
+               "".join(f"{c['source']} — {c['use']}. {c['license']}. {c['url']}\n" for c in harbours["credits"]) +
+               "OpenStreetMap-derived features (sports outlines, seamark lights): © OpenStreetMap contributors, ODbL 1.0 (https://opendatacommons.org/licenses/odbl/1-0/).\n"
+               "Positions are real (KHOA lines, OSM outlines/seamarks); every harbour width, height, armour band, parapet and light tower and every sports surface, "
+               "marking, goal, light pole and stand is an estimate (manifest harbours.heights and limits).\n" +
+               "\n--- Onshore wind (한경풍력, 신창소규모풍력) ---\n" +
+               "".join(f"{s['kind']}: {s.get('path') or s.get('url')}{' — ' + s['fact'] if 'fact' in s else ''}\n" for s in onshore["sources"]) +
+               "Turbine positions are the hub power_plant GIS points (OSM-derived, © OpenStreetMap contributors, ODbL 1.0); class, rotor, hub, nacelle, "
+               "blades and pads are estimates scaled from the Tamra prototype.\n" +
+               "\n--- Generation ---\n" +
+               "한경풍력 turbines map to DB plant 51, served by the bridge (/api/v1/jeju/pv/generation), not stored with this scene. Identity check: "
+               "한국남부발전(주)_한경풍력발전실적 (data.go.kr 15043410, https://www.data.go.kr/data/15043410/fileData.do), 공공데이터포털 이용허락범위 제한 없음. "
+               "Farm totals, not per turbine.\n")
     for facility in facilities:
         if "photo_asset" in facility:
             photo = facility["photo_asset"]
@@ -646,7 +709,17 @@ def verify(output: Path) -> dict:
     assert sha(ROOT / manifest["imagery"]["path"]) == manifest["imagery"]["sha256"]
     assert sha(ROOT / manifest["imagery"]["metadata_path"]) == manifest["imagery"]["metadata_sha256"]
     detail = manifest["imagery_detail"]
-    assert sha(ROOT / detail["path"]) == detail["sha256"] and sha(ROOT / detail["metadata_path"]) == detail["metadata_sha256"]
+    mosaics = {m["name"]: m for m in detail["mosaics"]}
+    assert sha(ROOT / detail["harbour_index"]["path"]) == detail["harbour_index"]["sha256"] and len(mosaics) == 1 + len(
+        json.loads((ROOT / detail["harbour_index"]["path"]).read_text())["mosaics"])
+    for m in mosaics.values():
+        assert sha(ROOT / m["path"]) == m["sha256"] and sha(ROOT / m["metadata_path"]) == m["metadata_sha256"]
+    harbours, generation = manifest["harbours"], manifest["generation"]
+    for source in harbours["sources"] + [s for s in manifest["onshore_wind"]["sources"] if "sha256" in s]:
+        assert sha(ROOT / source["path"]) == source["sha256"]
+    hankyung = {f["id"] for f in manifest["facilities"] if f.get("farm") == "한경풍력"}
+    assert len(hankyung) == 8 and generation["facility_plants"] == dict.fromkeys(sorted(hankyung), 51) and generation["farm_level"]
+    assert {"hallim_harbour", "sports_pitch", "onshore_wind"} <= set(manifest["cameras"])
     buildings = manifest["buildings"]
     for source in buildings["sources"] + [manifest["sea"]["source"]]:
         assert sha(ROOT / source["path"]) == source["sha256"]
@@ -685,24 +758,13 @@ def verify(output: Path) -> dict:
     expected_peak, expected_lon_lat = terrain_focus(originals["grid"], manifest["coordinateFrame"])
     assert np.allclose(manifest["terrain"]["camera_focus_source_dsm"]["position"], expected_peak, atol=.002)
     assert np.allclose(manifest["terrain"]["camera_focus_source_dsm"]["coordinates"], expected_lon_lat, atol=1e-6)
-    detail_faces = 0
+    detail_faces = Counter()
     for name, actual in terrain_meshes.items():
-        split = terrain_meshes.get(name + "_detail")
-        if name.endswith("_detail"):
-            assert actual.visual.material.name == "georeferenced_imagery_z17"
+        mosaic = name.partition("_detail_")[2]
+        if mosaic:
+            assert actual.visual.material.name == mosaics[mosaic]["material"], name
             assert ((actual.visual.uv >= 0) & (actual.visual.uv <= 1)).all(), name
-            detail_faces += len(actual.faces)
-        elif split is None:
-            source = originals["grid"].geometry[name]
-            assert len(source.faces) == len(actual.faces) and len(source.vertices) == len(actual.vertices)
-            assert np.array_equal(source.faces, actual.faces)
-            assert np.allclose(source.vertices, actual.vertices, atol=.002)
-        else:  # the base and z17 parts hold every source triangle, vertex heights included, exactly once
-            source = originals["grid"].geometry[name]
-            ordered = lambda t: t[np.lexsort(t.reshape(len(t), -1).T)]
-            assert len(source.faces) == len(actual.faces) + len(split.faces), name
-            assert np.allclose(ordered(source.vertices[source.faces]),
-                               ordered(np.concatenate([actual.vertices[actual.faces], split.vertices[split.faces]])), atol=.002)
+            detail_faces[mosaic] += len(actual.faces)
         if name == "ocean_surface":
             material = actual.visual.material
             assert material.name == manifest["sea"]["material"] == "georeferenced_imagery"
@@ -717,7 +779,7 @@ def verify(output: Path) -> dict:
                     assert material.baseColorTexture.convert("RGB").tobytes() == expected_image.convert("RGB").tobytes()
             assert all(m.visual.material.name == material.name and
                        m.visual.material.baseColorTexture.convert("RGB").tobytes() == material.baseColorTexture.convert("RGB").tobytes()
-                       for n, m in terrain_meshes.items() if not n.endswith("_detail"))
+                       for n, m in terrain_meshes.items() if "_detail_" not in n)
             assert manifest["sea"]["nonzero_coastal_vertex_count"] == np.count_nonzero(actual.vertices[:, 1])
             assert np.allclose(actual.bounds[:, 1], manifest["sea"]["height_range_m"])
         sample_indices = (np.arange(len(actual.vertices)) if name == "ocean_surface" else
@@ -725,25 +787,45 @@ def verify(output: Path) -> dict:
         vertices = actual.vertices[sample_indices]
         origin = manifest["coordinateFrame"]["origin_easting_northing"]
         mx, my = project_crs("EPSG:32652", "EPSG:3857", vertices[:, 0]+origin[0], origin[1]-vertices[:, 2])
-        west, south, east, north = manifest["imagery_detail" if name.endswith("_detail") else "imagery"]["bounds"]
+        west, south, east, north = (mosaics[mosaic] if mosaic else manifest["imagery"])["bounds"]
         expected = np.column_stack(((np.asarray(mx)-west)/(east-west), (np.asarray(my)-south)/(north-south)))
         assert np.allclose(actual.visual.uv[sample_indices], expected, atol=1e-5)
-    assert detail_faces == detail["triangle_count"] > 0
-    # The split changes no displayed height: 1,000 samples over the z17 area.
-    parts = [m for n, m in terrain_meshes.items() if n.endswith("_detail")]
-    low, high = np.min([m.bounds[0] for m in parts], axis=0), np.max([m.bounds[1] for m in parts], axis=0)
-    x, z = (np.random.default_rng(0).uniform(low[i], high[i], 1000) for i in (0, 2))
-    assert np.allclose(surface_height(reopened)(x, z), surface_height(originals["grid"])(x, z), atol=.002)
-    # A failed z17 tile keeps every triangle touching it on the base imagery.
-    detail_metadata = json.loads((ROOT / detail["metadata_path"]).read_text())
+    ordered = lambda t: t[np.lexsort(t.reshape(len(t), -1).T)]
+    for name, source in originals["grid"].geometry.items():
+        if not name.startswith(("ocean_surface", "terrain_landcover_")):
+            continue
+        parts = [m for n, m in terrain_meshes.items() if n == name or n.startswith(name + "_detail_")]
+        if len(parts) == 1 and name in terrain_meshes:  # untouched by any mosaic
+            actual = terrain_meshes[name]
+            assert len(source.faces) == len(actual.faces) and len(source.vertices) == len(actual.vertices)
+            assert np.array_equal(source.faces, actual.faces)
+            assert np.allclose(source.vertices, actual.vertices, atol=.002)
+        else:  # the base and z17 parts hold every source triangle, vertex heights included, exactly once
+            assert len(source.faces) == sum(len(m.faces) for m in parts), name
+            assert np.allclose(ordered(source.vertices[source.faces]), ordered(np.concatenate([m.vertices[m.faces] for m in parts])), atol=.002)
+    assert detail_faces == {n: m["triangle_count"] for n, m in mosaics.items()} and all(detail_faces[n] > 0 for n in mosaics), detail_faces
+    assert sum(detail_faces.values()) == detail["triangle_count"]
+    # The split changes no displayed height: 500 random points inside each z17 mosaic's moved triangles.
+    rng, samples = np.random.default_rng(0), []
+    for mosaic in mosaics:
+        tris = np.concatenate([trimesh.transform_points(m.vertices, reopened.graph[reopened.graph.geometry_nodes[n][0]][0])[m.faces]
+                               for n, m in terrain_meshes.items() if n.endswith("_detail_" + mosaic)])
+        samples.append(np.einsum("ij,ijk->ik", rng.dirichlet(np.ones(3), 500), tris[rng.integers(len(tris), size=500)]))
+    x, _, z = np.concatenate(samples).T
+    source_height = surface_height(originals["grid"])
+    assert np.allclose(surface_height(reopened)(x, z), source_height(x, z), atol=.002)
+    # A failed z17 tile keeps every triangle touching it on the base imagery (first mosaic, run alone as it wins every overlap).
+    first = detail["mosaics"][0]
+    parts = [m for n, m in terrain_meshes.items() if n.endswith("_detail_" + first["name"])]
+    detail_metadata = json.loads((ROOT / first["metadata_path"]).read_text())
     mx, my = mercator(parts[0].vertices[:1], manifest["coordinateFrame"])
     failed = next(t for t in detail_metadata["tiles"] if shapely.intersects_xy(tile_box(t), mx[0], my[0]))
     probe = trimesh.Scene(base_frame="world")
     copy_nodes(originals["grid"], probe, set(), terrain=True)
     moved = apply_imagery(probe, ROOT / manifest["imagery"]["path"], manifest["imagery"], manifest["coordinateFrame"],
-                          ROOT / detail["path"], {**detail_metadata, "failed_tiles": [failed]})
-    assert 0 < moved < detail["triangle_count"]
-    for name in (n for n in probe.geometry if n.endswith("_detail")):
+                          [(first["name"], ROOT / first["path"], {**detail_metadata, "failed_tiles": [failed]})])[first["name"]]
+    assert 0 < moved < first["triangle_count"]
+    for name in (n for n in probe.geometry if "_detail_" in n):
         mx, my = (a[probe.geometry[name].faces] for a in mercator(probe.geometry[name].vertices, manifest["coordinateFrame"]))
         assert not shapely.intersects(tile_box(failed), shapely.box(mx.min(1), my.min(1), mx.max(1), my.max(1))).any()
     actual_heights = np.concatenate([m.vertices[:, 1] for name, m in reopened.geometry.items()
@@ -845,6 +927,11 @@ def verify(output: Path) -> dict:
         original = originals["twin" if f["kind"] == "wind" else "grid"]
         assert f["node"] in reopened.graph.nodes
         actual = reopened.graph[f["node"]][0]
+        if f.get("subtype") == "onshore":  # new here: at its GIS point on the displayed ground, with the viewer's rotor and nacelle nodes
+            assert np.allclose(actual[:3, 3], f["position"], atol=.002) and np.isclose(f["position"][1], source_height([f["position"][0]], [f["position"][2]])[0], atol=.002)
+            assert f["rotor_node"] == f["node"] + "_rotor" and {f["rotor_node"], f["node"] + "_nacelle"} <= set(reopened.graph.nodes)
+            assert f["status"] == "onshore_estimated_geometry_real_position" and f["dimension_rows"]
+            continue
         if "photo_asset" in f:
             photo = f["photo_asset"]
             anchor = np.asarray(photo["asset_anchor_xyz"])
@@ -858,15 +945,18 @@ def verify(output: Path) -> dict:
         if f["kind"] == "wind":
             assert f["rotor_node"] in reopened.graph.nodes
             assert np.allclose(reopened.graph[f["rotor_node"]][0], original.graph[f["rotor_node"]][0], atol=.002)
-    assert len([f for f in manifest["facilities"] if f["kind"] == "wind"]) == 10
+    assert Counter(f.get("subtype", "tamra") for f in manifest["facilities"] if f["kind"] == "wind") == {"tamra": 10, "onshore": 10}
+    assert manifest["facilities"][0]["id"] == "hub:power_plant:5722"  # the viewer offsets every wind camera from the first wind record
+    assert set(harbours["meshes"]) <= set(reopened.graph.nodes) and all(n.startswith(("harbour_", "sports_")) for n in harbours["meshes"])
+    assert sum(len(reopened.geometry[n].faces) for n in harbours["meshes"]) == harbours["triangles"] <= harbours["budget"]
     assert sorted(f["kind"] for f in manifest["facilities"] if f["kind"] != "wind") == ["line", "pv", "pv", "pv", "substation"]
     source_routes = json.loads((ROOT / "var/rendering/grid/manifest.json").read_text())["routes"]
     assert all(a["id"] == b["id"] and a["source_ids"] == b["source_ids"] and
                a["coordinates"] == b["coordinates"] and a["points"] == b["points"]
                for a, b in zip(manifest["routes"], source_routes))
-    return {"status": "PASS", "facilities": len(manifest["facilities"]), "rotors": 10,
+    return {"status": "PASS", "facilities": len(manifest["facilities"]), "rotors": 20, "harbour_sports_triangles": harbours["triangles"],
             "buildings": buildings["count"], "building_counts": buildings["counts"],
-            "sea_source_geometry_unchanged": True, "sea_original_imagery_restored": True, "detail_triangles": detail_faces,
+            "sea_source_geometry_unchanged": True, "sea_original_imagery_restored": True, "detail_triangles": dict(detail_faces),
             "display_routes": sum(bool(r["paths"]) for r in manifest["routes"]), "coast_paths": len(manifest["coast"]),
             "reopened_meshes": len(reopened.geometry), "checks": ["source hashes", "reopened GLB", "frame and units",
             "facility and rotor transforms", "unaltered DSM vertices and projected UV", "embedded satellite JPEG",
@@ -876,7 +966,8 @@ def verify(output: Path) -> dict:
             "gable ridge/eaves within 0.4 m of the rectangle, 0.6 m parapets, metre wall UVs, roof UVs inside each building's atlas cell",
             "zero/NaN/infinite provider heights fall through; courtyard parapet and outward normals",
             "unchanged WBM sea vertices/faces, restored source imagery pixels and all sea UVs, water-source hash",
-            "z17 split keeps every source triangle and vertex height, detail UVs in [0,1], surface_height unchanged at 1,000 samples, failed-tile triangles stay on z15"]}
+            "z17 split over 11 mosaics keeps every source triangle and vertex height, detail UVs in [0,1] per mosaic, surface_height unchanged at 500 samples per mosaic, failed-tile triangles stay on z15",
+            "harbour/sports nodes and triangle budget, onshore turbine positions on displayed ground with rotor/nacelle nodes, harbour/onshore source hashes, 8 한경 turbines mapped to farm-level plant 51"]}
 
 
 def build_verified(output: Path, imagery_path: Path, imagery_metadata_path: Path,

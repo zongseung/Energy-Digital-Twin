@@ -33,7 +33,7 @@ from vegetation import axes
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "var/rendering/harbours"
-MANIFEST = ROOT / "var/rendering/local/manifest.json"
+MANIFEST = ROOT / "var/rendering/grid/manifest.json"  # same frame and terrain bbox as the local scene, without depending on its last build
 KHOA, OSM = ROOT / "var/survey/harbour/khoa_coast_bbox.geojson", ROOT / "var/survey/harbour/osm.json"
 PARCELS = ROOT / "var/rendering/green-cache/parcels.json"
 BUILDINGS = ROOT / ".worktrees/data/var/data/geography/source-03e02ef/building_info.geojsonl"
