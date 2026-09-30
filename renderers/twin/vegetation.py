@@ -27,6 +27,7 @@ from trimesh.visual.texture import TextureVisuals
 
 from build import normals, sha
 from landmarks import ring, solid
+from roads import SITE, to_scene
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "var/rendering/vegetation"
@@ -68,38 +69,26 @@ TEMPLATES = {  # 8-sided two-tier cone, dodecahedron crown, low citrus sphere
 
 
 def landcover() -> tuple[list, list]:
-    """Stream the 290 MB GeoJSONL; keep vegetation classes that touch the AOI."""
-    meta = json.loads(LANDCOVER.with_name(LANDCOVER.name + ".metadata.json").read_text())
-    assert sha(LANDCOVER) == meta["sha256"], "landcover.geojsonl does not match its metadata"
-    aoi = shapely.box(*AOI)
-    with LANDCOVER.open(encoding="utf-8") as lines:
-        features = [f for line in lines if '"제주"' in line for f in [json.loads(line)]
-                    if f["properties"]["l2_code"] in CLASSES and aoi.intersects(shapely.geometry.shape(f["geometry"]))]
-    return features, [{"kind": "landcover_zones", "path": str(LANDCOVER.relative_to(ROOT)),
-                       **{key: meta[key] for key in ("sha256", "source", "collected_at", "license")},
-                       "attribution": "환경부 토지피복지도 중분류", "classes": CLASSES}]
+    """Vegetation classes that touch the AOI; add_vegetation replaces img_dates with the zoned ones."""
+    from groundcover import landcover as load  # lazy: groundcover imports this module
+    return load(AOI, CLASSES)
 
 
 def buildings():
     """Site building footprints (scene x/z) grown 3 m, so trees and tunnels clear the walls."""
     # ponytail: 3 m clearance is below the widest crown (4.7 m); big broadleaf crowns can brush eaves. Grow per class if seen.
     from build_local import footprint_polygons  # lazy: build_local imports this module
-    site = json.loads((ROOT / "var/rendering/site/scene.json").read_text())
+    site = json.loads(SITE.read_text())
     return shapely.union_all([p for b in site["buildings"] for p in footprint_polygons(b)]).buffer(3)
 
 
 def zones(features: list, frame: dict, built) -> list:
     """[(class, polygons clipped to the AOI minus buildings, in scene x/z metres, properties)] per source feature."""
-    (e0, n0), aoi = frame["origin_easting_northing"], shapely.box(*AOI).buffer(-6e-5, join_style="mitre")  # >= 5.6 m: widest crown 4.7 m
-
-    def project(lon_lat: np.ndarray) -> np.ndarray:
-        east, north = project_crs("EPSG:4326", frame["horizontal_crs"], lon_lat[:, 0], lon_lat[:, 1])
-        return np.column_stack((np.asarray(east) - e0, n0 - np.asarray(north)))
-    out = []
+    aoi, out = shapely.box(*AOI).buffer(-6e-5, join_style="mitre"), []  # >= 5.6 m: widest crown 4.7 m
     for f in features:
         cls, geom = CLASSES.get(f["properties"]["l2_code"]), shapely.geometry.shape(f["geometry"])
         if cls and geom.intersects(aoi):
-            parts = shapely.get_parts(shapely.difference(shapely.transform(shapely.intersection(geom, aoi), project), built))
+            parts = shapely.get_parts(shapely.difference(shapely.transform(shapely.intersection(geom, aoi), lambda p: to_scene(p[:, 0], p[:, 1], frame)), built))
             if parts := [p for p in parts if p.geom_type == "Polygon" and p.area > 0]:
                 out.append((cls, parts, f["properties"]))
     return out
