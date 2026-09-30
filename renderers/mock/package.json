@@ -2,6 +2,7 @@
   "name": "jeju-twin-mock",
   "private": true,
   "type": "module",
-  "scripts": {"test": "node --test model.test.js"},
-  "dependencies": {"three": "0.180.0"}
+  "dependencies": {
+    "three": "0.180.0"
+  }
 }
