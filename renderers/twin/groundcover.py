@@ -27,10 +27,8 @@ import numpy as np
 import shapely
 import trimesh
 from rasterio.warp import transform as project_crs
-from trimesh.visual.material import PBRMaterial
-from trimesh.visual.texture import TextureVisuals
 
-from build import normals, sha
+from build import sha
 from prepare_imagery import read_key
 from roads import SITE, aoi_polygon, load_roads, to_scene, width
 from vegetation import AOI, LANDCOVER, SEED, axes
@@ -41,11 +39,9 @@ CACHE = OUT / "parcels.json"
 CLASSES = {"220": "field", "210": "paddy", "410": "grass", "420": "grass", "250": "other_crop"}
 CROPS, WALLED = {"field", "paddy", "other_crop"}, {"전", "과"}
 FARM = {"전", "답", "과", "목"}  # 지목 that carries crop rows
-CELL = 3.5  # paddy-water grid cut: 4.95 m cell diagonal keeps plan edges <= 5 m
 LAYER, API = "LP_PA_CBND_BUBUN", "https://api.vworld.kr/req/data"
 DOC = "https://www.vworld.kr/dev/v4dv_2ddataguide2_s002.do?svcIde=cadastral"
 TILES = 3  # 3 x 3 AOI boxes of ~1.4 km2; the documented geomFilter area limit is 2 km2
-WATER = PBRMaterial(name="groundcover_paddy_water", baseColorFactor=[96, 104, 88, 255], metallicFactor=0, roughnessFactor=.15)
 
 
 def landcover() -> tuple[list, list]:
@@ -112,26 +108,6 @@ def cadastre(features: list, frame: dict, aoi, crop, blocked) -> tuple[list, lis
     return parcels, walls, Counter(jimok(p["jibun"]) for p, _ in inside)
 
 
-def water(polygons: list, height_at) -> trimesh.Trimesh | None:
-    """Paddy surfaces cut into CELL squares, constrained-Delaunay per piece, every vertex at height_at + 0.15 m."""
-    if not polygons:
-        return None
-    polygon = shapely.union_all(polygons)
-    x0, z0, x1, z1 = np.floor(np.asarray(polygon.bounds) / CELL).astype(int)
-    xs, zs = (a.ravel() * CELL for a in np.meshgrid(np.arange(x0, x1 + 1), np.arange(z0, z1 + 1)))
-    cells = shapely.box(xs, zs, xs + CELL, zs + CELL)
-    parts = shapely.get_parts(shapely.intersection(cells[shapely.intersects(polygon, cells)], polygon))
-    parts = parts[shapely.get_type_id(parts) == 3]
-    tri = shapely.get_coordinates(shapely.get_parts(shapely.constrained_delaunay_triangles(parts))).reshape(-1, 4, 2)[:, :3]
-    a, b, c = tri[:, 0], tri[:, 1], tri[:, 2]  # drop cut slivers under 1 mm high, as roads.ribbon does (float32 GLB)
-    twice_area = np.abs((b[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (b[:, 1] - a[:, 1]) * (c[:, 0] - a[:, 0]))
-    flat = tri[twice_area / np.linalg.norm(tri - np.roll(tri, 1, axis=1), axis=2).max(axis=1) > 1e-3].reshape(-1, 2)
-    mesh = trimesh.Trimesh(np.column_stack((flat[:, 0], height_at(flat[:, 0], flat[:, 1]) + .15, flat[:, 1])),
-                           np.arange(len(flat)).reshape(-1, 3))  # GEOS clockwise (x, z) triangles face +y; merges cut vertices
-    mesh.visual = TextureVisuals(material=WATER)
-    return normals(mesh)
-
-
 def load_parcels(cache: Path = CACHE, fetch=None) -> tuple[list, dict]:
     """Cadastral features from the cache (fetched once if missing); [] and the reason when that fails."""
     try:
@@ -156,15 +132,12 @@ def add_groundcover(scene: trimesh.Scene, frame: dict, height_at, features: list
     zoned = zones(features, frame, aoi, built)
     road_area = shapely.union_all([shapely.LineString(line).buffer(width(r)[0] / 2 + .5) for r in roads for line in r["lines"]])
     plots, walls, jimoks = cadastre(parcels, frame, aoi, shapely.union_all([p for c, p in zoned if c in CROPS]), built | road_area)
-    mesh = water([p for c, p in zoned if c == "paddy"], height_at)
-    if mesh:
-        scene.add_geometry(mesh, geom_name="groundcover_paddy_water", node_name="groundcover_paddy_water")
     area, row_source = Counter(), "cadastral" if plots else "cell50_estimated"
     for c, p in zoned:
         area[c] += p.area
     counts = {"zones": dict(Counter(c for c, _ in zoned)), "zone_area_m2": {c: round(a) for c, a in area.items()},
               "parcels": len(plots), "parcel_jimok": dict(Counter(p["jimok"] for p in plots)), "cadastral_aoi_jimok": dict(jimoks),
-              "walls": len(walls), "wall_length_m": round(sum(w.length for w in walls)), "paddy_water_triangles": len(mesh.faces) if mesh else 0}
+              "walls": len(walls), "wall_length_m": round(sum(w.length for w in walls))}
     return {"zones": [{"class": c, "rings": [xz(r)[:-1] for r in (p.exterior, *p.interiors)]} for c, p in zoned],
             "parcels": plots, "walls": [xz(w) for w in walls], "row_source": row_source, "seed": SEED, "counts": counts,
             "sources": [*sources, parcel_source, {**road_source, "use": "wall mask: NGII centreline width / 2 + 0.5 m"}],
@@ -183,8 +156,7 @@ def add_groundcover(scene: trimesh.Scene, frame: dict, height_at, features: list
                        "(shared edges dissolved on a 0.1 m grid), clipped to the AOI, cut 0.5 m clear of NGII road ribbons and 1 m "
                        "clear of buildings, simplified <= 1 m, pieces under 2 m dropped; gates, gaps and walls around other lots "
                        "are not modelled.",
-                       f"Paddy water is flat per vertex at displayed terrain + 0.15 m on a {CELL} m grid cut (plan edges <= 5 m); "
-                       "the coarse DSM can put it above or below the actual paddy floor."]}
+                       "No paddy water surface: an opaque slab hid the current imagery (late-September paddies, and greenhouses now inside part of a 2023 paddy zone)."]}
 
 
 def collect() -> dict:
@@ -256,7 +228,7 @@ def self_test() -> None:
     scene = trimesh.Scene(base_frame="world")
     block = add_groundcover(scene, frame, height_at, features, parcels, roads)
     json.dumps(block)
-    assert set(scene.graph.nodes_geometry) == {"groundcover_paddy_water"} and block["seed"] == SEED == 20260930
+    assert not scene.graph.nodes_geometry and block["seed"] == SEED == 20260930  # data only; plants are drawn by the web viewer
 
     # Zones: classes mapped, AOI-clipped, buildings + 1 m removed, 0.1 m grid, open rings (outer first, then holes).
     polygons = [(z["class"], shapely.Polygon(z["rings"][0], z["rings"][1:])) for z in block["zones"]]
@@ -287,14 +259,6 @@ def self_test() -> None:
     assert walls.intersection(built.buffer(.45)).length < .01 and walls.intersection(shapely.box(cx - 51, cz - 1, cx + 51, cz + 41)).length > 200
     assert shapely.contains_xy(aoi.buffer(.1), *np.concatenate(block["walls"]).T).all()
     assert block["counts"]["walls"] == len(block["walls"]) and abs(block["counts"]["wall_length_m"] - walls.length) < 1
-
-    # Paddy water: 60 x 40 m at height_at + 0.15, plan edges <= 5 m, upward, muddy semi-reflective PBR.
-    water = scene.geometry["groundcover_paddy_water"]
-    assert np.allclose(water.vertices[:, 1], 10.15) and np.isclose(water.area, 2400, rtol=1e-3)
-    assert np.linalg.norm(np.diff(water.triangles[:, [0, 1, 2, 0]][:, :, [0, 2]], axis=1), axis=2).max() <= 5
-    assert (water.face_normals[:, 1] > .99).all() and np.isfinite(water.vertex_normals).all()
-    material = water.visual.material
-    assert material.metallicFactor == 0 and material.roughnessFactor == .15 and block["counts"]["paddy_water_triangles"] == len(water.faces)
 
     # Cadastral layer unavailable: cell50_estimated rows, no parcels or walls, reason recorded.
     missing, source = load_parcels(Path("/nonexistent/parcels.json"), lambda: 1 / 0)

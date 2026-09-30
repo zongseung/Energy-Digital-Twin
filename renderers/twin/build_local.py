@@ -31,6 +31,7 @@ from trimesh.visual.material import PBRMaterial
 from trimesh.visual.texture import TextureVisuals
 
 from build import normals, sha, translation
+from groundcover import add_groundcover
 from landmarks import add_landmarks
 from roads import add_roads
 from vegetation import add_vegetation
@@ -552,6 +553,7 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
     height_at = surface_height(scene)
     roads = add_roads(scene, grid["coordinateFrame"], height_at)
     vegetation = add_vegetation(scene, grid["coordinateFrame"], height_at)
+    groundcover = add_groundcover(scene, grid["coordinateFrame"], height_at)
     grid_assumptions, wind_assumptions = local_assumptions(grid, wind)
     terrain = {**grid["terrain"], "materials": "Georeferenced VWorld Satellite JPEG mapped to the unchanged DSM and WBM ocean mesh via EPSG:3857 UV coordinates; "
                "land and coastal sea triangles inside the Sinchang z17 mosaic use it (~1 m/px) as *_detail meshes"}
@@ -585,7 +587,7 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
     manifest = {
         "schema_version": 1, "created_at": datetime.now(timezone.utc).isoformat(), "units": "m",
         "coordinateFrame": grid["coordinateFrame"], "facilities": facilities, "routes": routes,
-        "coast": coast, "terrain": terrain, "buildings": buildings, "landmarks": landmarks, "roads": roads, "vegetation": vegetation, "sea": sea, "physical_line": grid["physical_line"],
+        "coast": coast, "terrain": terrain, "buildings": buildings, "landmarks": landmarks, "roads": roads, "vegetation": vegetation, "groundcover": groundcover, "sea": sea, "physical_line": grid["physical_line"],
         "cameras": cameras, "assetassumptions": grid_assumptions,
         "wind_assetassumptions": wind_assumptions,
         "source_assetassumptions": {"grid": grid["assetassumptions"], "wind": wind["assetassumptions"]},
@@ -622,8 +624,9 @@ def build(output: Path, imagery_path: Path, imagery_metadata_path: Path,
                        for s in landmarks["sources"] if s["kind"] == "shape_proportion_photo") +
                "Landmark positions from VWorld Satellite z19 imagery; geometry is photo-referenced code modelling (estimated, not surveyed).\n" +
                "\n--- Roads and vegetation ---\n" +
-               "".join(f"{s.get('attribution') or s.get('source')} — {s.get('source', '')} ({s.get('license') or 'provider terms apply'})\n"
-                       for s in roads["sources"] + vegetation["sources"] if s.get("attribution") or s.get("source")) +
+               "".join(dict.fromkeys(f"{s.get('attribution') or s.get('source')} — {s.get('source', '')} ({s.get('license') or 'provider terms apply'})\n"
+                       for s in roads["sources"] + vegetation["sources"] + groundcover["sources"] if s.get("attribution") or s.get("source"))) +
+               "Fields/paddies/grass/field walls: zones from landcover, parcel outlines and 지목 from VWorld 연속지적도 (LP_PA_CBND_BUBUN); crops, rice, grass and 밭담 positions are near-camera estimates in the web viewer; paddy water surface in the GLB.\n" +
                "Road ribbons: path from source, width/pavement per record status (source or estimated). Vegetation: zones from 2023 landcover; individual trees and greenhouses are procedural estimates.\n")
     for facility in facilities:
         if "photo_asset" in facility:
