@@ -3,6 +3,7 @@
 
 python3 renderers/twin/prepare_imagery.py [--self-test]
 python3 renderers/twin/prepare_imagery.py --roofs   # z19 roof atlas for the Sinchang footprints
+python3 renderers/twin/prepare_imagery.py --terrain-detail   # z17 site AOI mosaic -> var/rendering/imagery-detail
 Uses the existing vworld_key; credentials are never written to output metadata.
 """
 import argparse
@@ -14,6 +15,7 @@ import json
 import math
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 from urllib.request import Request, urlopen
 
 from PIL import Image
@@ -74,6 +76,38 @@ def fetch(key, zoom, cache, job):
     return x, y, payload
 
 
+def fetch_all(key, zoom, cache, jobs):
+    """Fetch tiles in parallel; failed or blank tiles are recorded, never filled."""
+    def attempt(job):
+        try:
+            return fetch(key, zoom, cache, job), None
+        except Exception as error:  # messages carry only z/y/x and the error type, never the key
+            return (*job, None), str(error)
+
+    tiles, records, failed = {}, [], []
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for (x, y, payload), error in pool.map(attempt, sorted(jobs)):
+            image = None if error else validate(payload)
+            if image is not None and all(low == high for low, high in image.getextrema()):
+                error = f'Satellite tile {zoom}/{y}/{x} is blank'
+            if error:
+                failed.append({'z': zoom, 'x': x, 'y': y, 'error': error})
+                continue
+            tiles[x, y] = image
+            records.append({'z': zoom, 'x': x, 'y': y, 'sha256': hashlib.sha256(payload).hexdigest()})
+    return tiles, records, failed
+
+
+def mosaic(bbox, zoom, tiles):
+    """North-up whole-tile mosaic; a missing tile stays neutral grey (callers record it)."""
+    # ponytail: grey can bleed a few texels into neighbouring triangles at low mip levels; fill from z15 if failures persist.
+    (x0, y0, x1, y1), bounds = coverage(bbox, zoom)
+    image = Image.new('RGB', ((x1 - x0 + 1) * 256, (y1 - y0 + 1) * 256), (128, 128, 128))
+    for (x, y), tile_image in tiles.items():
+        image.paste(tile_image, ((x - x0) * 256, (y - y0) * 256))
+    return image, bounds
+
+
 def roof_atlas(bboxes, tiles, width=4096):
     """Crop each lon/lat bbox from z19 tiles and shelf-pack the crops with 2 px gutters.
 
@@ -125,24 +159,7 @@ def roofs(key, output):
         raise ValueError('Roof request exceeds the bounded tile budget')
     cache = output / 'tiles' / str(zoom)
     cache.mkdir(parents=True, exist_ok=True)
-
-    def attempt(job):
-        try:
-            return fetch(key, zoom, cache, job), None
-        except Exception as error:  # messages carry only z/y/x and the error type, never the key
-            return (*job, None), str(error)
-
-    tiles, records, failed = {}, [], []
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        for (x, y, payload), error in pool.map(attempt, sorted(jobs)):
-            image = None if error else validate(payload)
-            if image is not None and all(low == high for low, high in image.getextrema()):
-                error = f'Satellite tile {zoom}/{y}/{x} is blank'
-            if error:
-                failed.append({'z': zoom, 'x': x, 'y': y, 'error': error})
-                continue
-            tiles[x, y] = image
-            records.append({'z': zoom, 'x': x, 'y': y, 'sha256': hashlib.sha256(payload).hexdigest()})
+    tiles, records, failed = fetch_all(key, zoom, cache, jobs)
     atlas, entries = roof_atlas(bboxes, tiles)
     path = output / 'atlas.jpg'
     atlas.save(path, quality=92, subsampling=0)
@@ -167,6 +184,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--self-test', action='store_true')
     parser.add_argument('--roofs', action='store_true', help='z19 roof atlas for the Sinchang footprints')
+    parser.add_argument('--terrain-detail', action='store_true', help='z17 terrain mosaic for the Sinchang site AOI')
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     if args.self_test:
@@ -199,30 +217,52 @@ def main():
         (w, s, e, n) = entries['across']['mercator_bbox']
         assert math.isclose(e - w, 101 * 2 * HALF_WORLD / 2 ** 27) and math.isclose(n - s, 71 * 2 * HALF_WORLD / 2 ** 27)
         assert w < math.radians(bboxes['across'][0]) * 6378137 < math.radians(bboxes['across'][2]) * 6378137 < e
-        print('PASS tile order, geographic coverage, invalid-image rejection, roof crop/packing and failed-tile exclusion')
+        # Synthetic z17 site mosaic from a local cache: a corrupt and a blank tile are recorded, never fetched or filled.
+        aoi = [126.155, 33.325, 126.19, 33.36]
+        (x0, y0, x1, y1), expected = coverage(aoi, 17)
+        jobs = [(x, y) for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)]
+        with TemporaryDirectory() as cache:
+            for x, y in jobs:
+                image = Image.new('RGB', (256, 256), (x % 200, y % 200, 60))
+                image.putpixel((0, 0), (255, 255, 255))
+                image.save(Path(cache) / f'{x}-{y}.jpg')
+            (Path(cache) / f'{x0}-{y0}.jpg').write_bytes(b'<Error>invalid key</Error>')
+            Image.new('RGB', (256, 256), (9, 9, 9)).save(Path(cache) / f'{x1}-{y1}.jpg')
+            tiles, records, failed = fetch_all('unused', 17, Path(cache), jobs)
+        assert [(f['z'], f['x'], f['y']) for f in failed] == [(17, x0, y0), (17, x1, y1)] and len(records) == len(jobs) - 2
+        image, bounds = mosaic(aoi, 17, tiles)
+        assert bounds == expected and image.size == ((x1 - x0 + 1) * 256, (y1 - y0 + 1) * 256) and max(image.size) <= 4096
+        merc = [math.radians(aoi[0]) * 6378137, 6378137 * math.asinh(math.tan(math.radians(aoi[1]))),
+                math.radians(aoi[2]) * 6378137, 6378137 * math.asinh(math.tan(math.radians(aoi[3])))]
+        assert bounds[0] < merc[0] < merc[2] < bounds[2] and bounds[1] < merc[1] < merc[3] < bounds[3]
+        assert image.getpixel((5, 5)) == image.getpixel(tuple(v - 5 for v in image.size)) == (128, 128, 128)
+        assert image.getpixel((256 + 5, 5)) != (128, 128, 128)
+        print('PASS tile order, geographic coverage, invalid-image rejection, roof crop/packing and failed-tile exclusion, z17 site mosaic')
         return
     key = read_key(Path('.env'))
     if args.roofs:
         roofs(key, args.output or Path('var/rendering/roofs'))
         return
-    args.output = args.output or Path('var/rendering/imagery')
-    bbox = json.loads(Path('var/rendering/grid/manifest.json').read_text())['terrain']['bbox_lon_lat']
-    zoom = 15
+    detail = args.terrain_detail
+    args.output = args.output or Path('var/rendering/imagery-detail' if detail else 'var/rendering/imagery')
+    if detail:  # ~1 m/px over the Sinchang site AOI; build_local keeps z15 where these tiles fail
+        bbox, zoom = json.loads(Path('var/rendering/site/scene.json').read_text())['aoi_bbox'], 17
+    else:
+        bbox, zoom = json.loads(Path('var/rendering/grid/manifest.json').read_text())['terrain']['bbox_lon_lat'], 15
     (x0, y0, x1, y1), bounds = coverage(bbox, zoom)
     jobs = [(x, y) for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)]
     if len(jobs) > 512:
         raise ValueError('Preview request exceeds the bounded tile budget')
+    if detail and max(x1 - x0 + 1, y1 - y0 + 1) * 256 > 4096:
+        raise ValueError('Detail mosaic exceeds 4096 px')
     cache = args.output / 'tiles' / str(zoom)
     cache.mkdir(parents=True, exist_ok=True)
-
-    mosaic = Image.new('RGB', ((x1 - x0 + 1) * 256, (y1 - y0 + 1) * 256))
-    records = []
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        for x, y, payload in pool.map(lambda job: fetch(key, zoom, cache, job), jobs):
-            mosaic.paste(validate(payload), ((x - x0) * 256, (y - y0) * 256))
-            records.append({'z': zoom, 'x': x, 'y': y, 'sha256': hashlib.sha256(payload).hexdigest()})
+    tiles, records, failed = fetch_all(key, zoom, cache, jobs)
+    if failed and not detail:
+        raise RuntimeError(failed[0]['error'])  # the whole-area base has no fallback imagery
+    image, bounds = mosaic(bbox, zoom, tiles)
     path = args.output / 'texture.jpg'
-    mosaic.save(path, quality=94, subsampling=0)
+    image.save(path, quality=94, subsampling=0)
     w, s, e, n = bounds
     lonlat = [math.degrees(w / 6378137), math.degrees(math.atan(math.sinh(s / 6378137))),
               math.degrees(e / 6378137), math.degrees(math.atan(math.sinh(n / 6378137)))]
@@ -230,13 +270,14 @@ def main():
                 'documentation': 'https://www.vworld.kr/dev/v4dv_wmtsguide_s001.do',
                 'source_url_template': 'https://api.vworld.kr/req/wmts/1.0.0/{key}/Satellite/{z}/{y}/{x}.jpeg',
                 'crs': 'EPSG:3857', 'bounds': bounds, 'bbox_lon_lat': lonlat, 'requested_bbox_lon_lat': bbox,
-                'width': mosaic.width, 'height': mosaic.height, 'zoom': zoom, 'tile_count': len(records),
+                'width': image.width, 'height': image.height, 'zoom': zoom, 'tile_count': len(records),
+                'failed_tile_count': len(failed),
                 'acquired_at': datetime.now(timezone.utc).isoformat(), 'capture_date': None,
                 'notice': 'Actual provider imagery; acquisition date is not photography date. Provider terms apply; local preview cache, not an open-data redistribution license.',
-                'processing': 'North-up WMTS mosaic; original tile pixels retained, JPEG encoded at quality94. No synthetic fill.',
-                'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'tiles': records}
+                'processing': 'North-up WMTS mosaic; original tile pixels retained, JPEG encoded at quality94. No synthetic fill; failed tiles stay neutral grey, are listed in failed_tiles and are never mapped.',
+                'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'tiles': records, 'failed_tiles': failed}
     (args.output / 'manifest.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + '\n')
-    print(json.dumps({'status': 'PASS', 'tiles': len(records), 'size': mosaic.size, 'sha256': metadata['sha256']}))
+    print(json.dumps({'status': 'PASS', 'tiles': len(records), 'failed_tiles': len(failed), 'size': image.size, 'sha256': metadata['sha256']}))
 
 
 if __name__ == '__main__':
