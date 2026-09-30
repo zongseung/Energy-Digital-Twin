@@ -44,10 +44,8 @@ async fn version(socket: &mut Client, expected: u64) -> Value {
     panic!("missing snapshot version {expected}")
 }
 
-#[tokio::test]
-#[allow(clippy::panic, reason = "test failure reporting")]
-async fn ws_preserves_corrections_disconnects_restarts_and_shutdown() {
-    let (updates, updates_rx) = watch::channel(envelope(9, 88.0));
+async fn live(tasks: &mut JoinSet<()>, first: Value) -> (watch::Sender<Value>, Bridge, String) {
+    let (updates, updates_rx) = watch::channel(first);
     let upstream = Router::new().route(
         "/api/v1/jeju/ws",
         get(move |ws: WebSocketUpgrade| {
@@ -75,10 +73,20 @@ async fn ws_preserves_corrections_disconnects_restarts_and_shutdown() {
             }
         }),
     );
-    let mut tasks = JoinSet::new();
-    let (base, bridge) = app(&mut tasks, upstream, "redis://127.0.0.1:1/0").await;
+    let (base, bridge) = app(tasks, upstream, "redis://127.0.0.1:1/0").await;
     tasks.spawn(bridge.clone().run());
-    let ws = base.replacen("http", "ws", 1) + "/api/v1/jeju/ws";
+    (
+        updates,
+        bridge,
+        base.replacen("http", "ws", 1) + "/api/v1/jeju/ws",
+    )
+}
+
+#[tokio::test]
+#[allow(clippy::panic, reason = "test failure reporting")]
+async fn ws_preserves_corrections_disconnects_restarts_and_shutdown() {
+    let mut tasks = JoinSet::new();
+    let (updates, bridge, ws) = live(&mut tasks, envelope(9, 88.0)).await;
     let mut request = ws.clone().into_client_request().unwrap();
     request
         .headers_mut()
@@ -135,4 +143,73 @@ async fn ws_preserves_corrections_disconnects_restarts_and_shutdown() {
             .unwrap(),
         Some(Ok(ClientMessage::Close(_)))
     ));
+}
+
+#[tokio::test]
+async fn ws_does_not_resend_identical_upstream_state() {
+    let mut tasks = JoinSet::new();
+    let (updates, _bridge, ws) = live(&mut tasks, envelope(9, 88.0)).await;
+    let (mut client, _) = connect_async(&ws).await.unwrap();
+    version(&mut client, 9).await;
+    let mut same = envelope(9, 88.0);
+    same["sent_at"] = json!("2026-09-29T00:00:02Z");
+    updates.send_replace(same);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(500), next(&mut client))
+            .await
+            .is_err(),
+        "identical state was resent"
+    );
+    updates.send_replace(envelope(10, 99.0));
+    assert_eq!(next(&mut client).await["state_version"], 10);
+    // A restarted source reuses low versions; different content must still arrive.
+    updates.send_replace(envelope(1, 101.0));
+    let restart = next(&mut client).await;
+    assert_eq!(restart["state_version"], 1);
+    assert_eq!(restart["data"]["demand_mw"], 101.0);
+}
+
+#[tokio::test]
+async fn ws_initial_snapshot_never_hides_immediate_correction() {
+    let mut tasks = JoinSet::new();
+    let (updates, _bridge, ws) = live(&mut tasks, envelope(99, 88.0)).await;
+    for i in 0..30_u32 {
+        let (mut client, _) = connect_async(&ws).await.unwrap();
+        updates.send_replace(envelope(100 + u64::from(i), f64::from(i)));
+        let correction = version(&mut client, 100 + u64::from(i)).await;
+        assert_eq!(correction["data"]["demand_mw"], f64::from(i));
+    }
+}
+
+#[tokio::test]
+async fn ws_slow_subscriber_is_dropped_without_blocking_others() {
+    let mut tasks = JoinSet::new();
+    let (updates, bridge, ws) = live(&mut tasks, envelope(1, 88.0)).await;
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket.set_recv_buffer_size(4096).unwrap();
+    let addr = ws.trim_start_matches("ws://").split('/').next().unwrap();
+    let stream = socket.connect(addr.parse().unwrap()).await.unwrap();
+    // Never read: the kernel buffers fill and the server's 5 s send timeout ends the session.
+    let (_slow, _) = tokio_tungstenite::client_async(&ws, stream).await.unwrap();
+    let (mut fast, _) = connect_async(&ws).await.unwrap();
+    assert_eq!(bridge.ws_slots.available_permits(), 30);
+    let mut last = 1;
+    tokio::time::timeout(Duration::from_secs(20), async {
+        while bridge.ws_slots.available_permits() < 31 {
+            last += 1;
+            let mut big = envelope(last, 88.0);
+            // data.source must equal SOURCE, so the ~8 KiB payload rides in a quality flag.
+            big["quality_flags"] = json!(["x".repeat(8 * 1024)]);
+            updates.send_replace(big);
+            version(&mut fast, last).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(bridge.ws_slots.available_permits(), 31);
+    updates.send_replace(envelope(last + 1, 99.0));
+    assert_eq!(
+        version(&mut fast, last + 1).await["data"]["demand_mw"],
+        99.0
+    );
 }

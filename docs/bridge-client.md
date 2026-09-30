@@ -42,7 +42,7 @@ Redis namespace는 `edt:dev:v1:`이며 브릿지 주소 식별자와 schema를 �
 
 캐시를 사용하기 전에 브릿지 health를 직접 확인한다. WS가 연결돼 초기 snapshot을 받은 동안만 관측 캐시를 사용하고, 단절/원천 오류 상태에서는 HTTP 원천 조회로 전환한다. 과거 시점만 수정되어 최신 WS 상태가 바뀌지 않는 정정은 최대 300초 TTL 뒤 반영된다. 더 엄격한 과거 정정 전파에는 브릿지의 이력 버전 계약이 필요하다.
 
-앱 전체에서 브릿지 WS 하나를 공유하고 watch에 최신 상태 하나만 보관한다. 서버 재시작으로 원천 `state_version`이 작아져도 새 snapshot을 적용한다. 터널 단절은 `type=status`, `bridge_disconnected`로 표시하고 마지막 관측의 값/시각을 유지한다. `sent_at`은 앱 전달 시각이다. 재접속 간격은 1초에서 최대 30초이며 upstream 응답 대기는 초기 15초/이후 75초다.
+앱 전체에서 브릿지 WS 하나를 공유하고 watch에 최신 상태 하나만 보관한다. 서버 재시작으로 원천 `state_version`이 작아져도 새 snapshot을 적용한다. 터널 단절은 `type=status`, `bridge_disconnected`로 표시하고 마지막 관측의 값/시각을 유지한다. `sent_at`은 앱 전달 시각이다. `sent_at`만 다른 같은 내용(`type`·`schema_version`·`observed_at`·`state_version`·`source`·`quality_flags`·`data`)의 upstream 프레임은 사용자에게 다시 보내지 않고 캐시 세대도 올리지 않는다. 버전 번호가 아니라 내용을 비교하므로 재시작으로 `state_version`이 1로 돌아가도 내용이 다르면 전달하고, 지연 flag가 바뀌어도 새 내용으로 본다. 재접속 간격은 1초에서 최대 30초이며 upstream 응답 대기는 초기 15초/이후 75초다.
 
 사용자 WS는 최대 32개, 입력 16KiB, 송신 5초 제한과 30초 ping을 사용한다. 느린 소비자는 중간 상태를 생략하고 최신 상태를 받거나 연결이 종료된다. `ALLOWED_ORIGINS`는 쉼표로 구분한 정확한 origin 목록이며, 비어 있으면 Origin 헤더가 있는 브라우저 연결을 거부한다. 네이티브 클라이언트는 Origin 없이 연결한다. ping/pong은 새 관측이 아니다.
 
@@ -54,7 +54,7 @@ cargo clippy --all-targets --locked -- -D warnings
 TEST_REDIS_URL=redis://127.0.0.1:6380/0 cargo test --locked -- --include-ignored
 ```
 
-시험 서버의 합성 응답으로 HTTP 두 시점·정정·NULL/0·오류·WS 단절/재시작/종료를 확인하며 실제 앱 Redis로 hit/miss·TTL·원천 장애를 검사한다. 운영 DB를 변경하거나 중지하지 않는다.
+시험 서버의 합성 응답으로 HTTP 두 시점·정정·NULL/0·오류·WS 단절/재시작/종료를 확인하며 실제 앱 Redis로 hit/miss·TTL·원천 장애를 검사한다. WS 검사는 세 가지를 더 본다. `ws_does_not_resend_identical_upstream_state`는 `sent_at`만 다른 재발행이 전송되지 않고 버전이 1로 돌아간 새 내용은 전달되는지, `ws_initial_snapshot_never_hides_immediate_correction`은 연결 직후 정정을 30회 반복해도 최종 버전이 유실되지 않는지, `ws_slow_subscriber_is_dropped_without_blocking_others`는 수신 버퍼 4KiB로 읽지 않는 클라이언트가 약 5.4초 뒤 정리되어 슬롯이 돌아오고 동시에 연결한 클라이언트는 최신 버전을 계속 받는지 확인한다. 서버에는 클라이언트별 큐가 없고 watch의 최신값 하나만 보낸다. 느린 소비자 검사는 5회 반복해 모두 통과했다(`var/verification/ws-tests/`). 운영 DB를 변경하거나 중지하지 않는다.
 
 2026-09-29 실제 SSH 터널로 GIS 2,748개 전체 feature 필드와 두 시점의 관측값을 브릿지 HTTP에 대조하고 앱 WS 초기 수신도 확인했다. 앱 health는 200, bridge/Redis 모두 ok다. 실제 하루 이력의 결측 처리와 연속 구간 순부하 계산도 통과했다 (`var/verification/live-integration.log`). 지리 자료·사진·DEM은 독립 `data` 브랜치 작업 공간에 보관하며 [전송 결과](source-geography.md)에 기록한다.
 

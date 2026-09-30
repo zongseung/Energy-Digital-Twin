@@ -5,7 +5,7 @@ use super::Error;
 
 pub(super) const SOURCE: &str = "demand-postgres.public.jeju_supply_demand";
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub(crate) struct Snapshot {
     pub schema_version: u8,
     pub observed_at: DateTime<Utc>,
@@ -51,7 +51,7 @@ pub(super) enum MessageType {
     Status,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub(super) struct Envelope {
     #[serde(rename = "type")]
     pub kind: MessageType,

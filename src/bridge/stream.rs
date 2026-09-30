@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, atomic::Ordering},
+    time::Duration,
+};
 
 use axum::{
     extract::{
@@ -60,10 +63,17 @@ pub(super) async fn receive(bridge: Bridge) {
                             MessageType::Snapshot | MessageType::Status => {}
                         }
                         envelope.refresh();
-                        bridge
-                            .cache_epoch
-                            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                        bridge.live.send_replace(envelope);
+                        // Content equality (sent_at excluded), not state_version: restarts reuse versions.
+                        bridge.live.send_if_modified(|current| {
+                            let mut same = current.clone();
+                            same.sent_at = envelope.sent_at;
+                            if same == envelope {
+                                return false;
+                            }
+                            bridge.cache_epoch.fetch_add(1, Ordering::SeqCst);
+                            *current = envelope;
+                            true
+                        });
                         first = false;
                         backoff = 1;
                     }
@@ -95,9 +105,7 @@ pub(super) async fn receive(bridge: Bridge) {
                 }
             }
         }
-        bridge
-            .cache_epoch
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        bridge.cache_epoch.fetch_add(1, Ordering::SeqCst);
         bridge.live.send_modify(|state| {
             state.kind = MessageType::Status;
             if !state
