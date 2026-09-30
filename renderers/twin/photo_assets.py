@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 from pathlib import Path
@@ -16,12 +15,7 @@ import trimesh
 ROOT = Path(__file__).resolve().parents[2]
 # Standalone uv scripts reuse the inference runner's embedded-resource validator.
 sys.path.insert(0, str(ROOT))
-from inference.run import check_glb
-
-
-def _sha(path: Path) -> str:
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+from inference.run import check_glb, sha256
 
 
 def _point(value: object) -> np.ndarray:
@@ -107,8 +101,8 @@ def load_placements(path: Path, facilities: list[dict], frame: dict,
             raise ValueError("Inference photo source or license is missing or inconsistent")
         if not all(isinstance(item.get(key), str) and len(item[key]) == 64 for key in ("photo_sha256", "asset_sha256")):
             raise ValueError("Photo and asset hashes are required")
-        if (item["photo_sha256"] != _sha(photo) or item["photo_sha256"] != image.get("sha256")
-                or item["asset_sha256"] != _sha(asset) or item["asset_sha256"] != detail.get("asset", {}).get("sha256")):
+        if (item["photo_sha256"] != sha256(photo) or item["photo_sha256"] != image.get("sha256")
+                or item["asset_sha256"] != sha256(asset) or item["asset_sha256"] != detail.get("asset", {}).get("sha256")):
             raise ValueError("Photo or asset hash mismatch")
         try:
             check_glb(asset)
