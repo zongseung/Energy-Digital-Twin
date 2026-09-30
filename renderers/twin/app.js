@@ -50,6 +50,7 @@ function setSheetHeight(percent) {
 function openPanel(tool, origin = document.activeElement) {
   if (el('info-panel').hidden) returnFocus = origin;
   panelTool = tool; document.body.dataset.panel = tool;
+  if (tool === 'analysis') showOutsidePlants();
   el('info-panel').hidden = false;
   for (const section of el('panel-body').querySelectorAll('[data-panel]')) section.hidden = section.dataset.panel !== tool;
   el('panel-title').textContent = {detail:'선택 시설',facilities:'시설 탐색',layers:'표시 레이어',weather:'현재 기상',analysis:'지역 분석',sources:'자료 출처',help:'지도 도움말'}[tool];
@@ -444,6 +445,26 @@ el('scenario-form').onsubmit = async (event) => {
     el('state-source').textContent = `시뮬레이션 · 실측 아님 · 모델 ${result.model_version} · 원천 ${result.input?.source_version || '—'} · 입력 G·HVDC·ESS는 사용자 가정`;
   } catch { if (mine === seq) status('state-status', '시뮬레이션 응답을 읽지 못했습니다.', true); }
 };
+// Bridge plants with no facility in this scene (e.g. 남제주소내 태양광 in 서귀포): latest hourly value only, clearly labelled.
+let outsideSeq = 0;
+async function showOutsidePlants() {
+  const mine = ++outsideSeq, list = el('outside-plant-list'), mapped = new Set(Object.values(grid?.data.generation?.facility_plants || {}));
+  const item = (text, title = '') => Object.assign(document.createElement('li'), {textContent:text, title});
+  try {
+    const response = await fetch(grid?.data.generation?.api || '/api/v1/jeju/pv/generation', {signal:AbortSignal.timeout(20000), cache:'no-store'});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.json();
+    if (mine !== outsideSeq) return;
+    const rows = (body.plants || []).filter((p) => !mapped.has(p.plant?.plant_id)).map((p) => {
+      const obs = p.observations?.at(-1), at = Date.parse(obs?.interval_start), flags = [...(obs?.quality_flags || []), ...(p.quality_flags || [])];
+      const when = Number.isFinite(at) ? new Date(at).toLocaleString('ko-KR', {timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false}) + ' KST 원천 라벨' : '시각 없음';
+      const value = Number.isFinite(obs?.gen_kwh) ? `${obs.gen_kwh.toLocaleString('ko-KR')} kWh` : '—';
+      const old = Number.isFinite(at) && Date.now() - at > 48 * 3600000 ? ' · 과거값' : '';
+      return item(`${p.plant?.plant_name || p.plant?.plant_id} (${[p.plant?.sigungu, {solar:'태양광', wind:'풍력'}[p.plant?.fuel_type] || p.plant?.fuel_type].filter(Boolean).join(' · ')}) · ${value} · ${when}${old} · 품질 표시 ${flags.length}건`, flags.join(', '));
+    });
+    list.replaceChildren(...(rows.length ? rows : [item('장면 밖 공개 발전소 없음')]));
+  } catch { if (mine === outsideSeq) list.replaceChildren(item('발전량 연결 지연 · 패널을 다시 열면 재시도합니다')); }
+}
 // Measured hourly farm totals (manifest.generation.facility_plants): the latest hour, or the hour holding the history/scenario time.
 // ponytail: HTTP on selection and time change only; the bridge's /api/v1/jeju/pv/ws would keep the latest value live.
 function generation(value, note) { el('generation-value').textContent = value; el('generation-note').textContent = note; }

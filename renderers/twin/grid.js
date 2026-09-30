@@ -168,8 +168,9 @@ export function groundcover(gc, surfaces, redraw) { // gc: the manifest groundco
   // name: [geometry, material, cap, radius m, deepest tier]; tiers by camera-target distance: 0 < 180 m, 1 < 600 m, 2 < 2 km, 3 beyond
   const kinds = {crop:[clump(), both, 15000, 50, 0], rice:[tuft(3, 1, .22, .03), {}, 25000, 50, 0], grass:[tuft(3, .45, .15, .06), {}, 20000, 80, 0], wall:[stones(), {}, 20000, 250, 1],
     conifer:[conifer(), both, 12000, 400, 2], broadleaf:[broadleaf(), both, 6000, 400, 2], citrus:[citrus(), {}, 10000, 250, 2], greenhouse:[tunnel(), film, 2000, 400, 2]};
-  // Tier-2 types shrink about their base from 800 m camera distance to nothing at 2 km, so the tier cut never pops.
-  // ponytail: from ~0.8-1.5 km the 400 m disc still reads as an island of 3D trees on the imagery; add a far LOD (impostors) if that matters.
+  // Tier-2 radii grow with camera distance (trees 400→1600 m, citrus 250→1000 m) and are thinned by (base/R)², so the count stays
+  // flat and far stands read as sparse forest, not a 400 m island; they still shrink to nothing between 1.5 and 2 km.
+  const reach = (d, base, max) => Math.min(max, Math.max(base, d * base / 500));
   const fade = {value:1};
   const shrink = (s) => { s.uniforms.fade = fade; s.vertexShader = `uniform float fade;\n${s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed *= fade;')}`; };
   const meshes = Object.fromEntries(Object.entries(kinds).map(([name, [g, options, cap, , tier]]) => {
@@ -241,13 +242,14 @@ export function groundcover(gc, surfaces, redraw) { // gc: the manifest groundco
     }
   }
   const G = 6, cand = (i, j) => [(i + .5 + (hash(i, j, 11) - .5) * .8) * G, (j + .5 + (hash(i, j, 12) - .5) * .8) * G, hash(i, j, 13)];
-  function forest(tx, tz, R, out) { // one candidate per world 6 m cell (80 % jitter); it stands unless a neighbour within 5 m ranks higher (Matérn II): ~1 tree / 64 m2, >= 5 m apart
+  function forest(tx, tz, R, out, keep = 1) { // one candidate per world 6 m cell (80 % jitter); it stands unless a neighbour within 5 m ranks higher (Matérn II): ~1 tree / 64 m2, >= 5 m apart
     const blocks = new Map(), wooded = (x, z) => { // 64 m block with any forest zone: skip the zone test elsewhere
       const k = cellKey(x, z), x0 = Math.floor(x / CELL) * CELL, z0 = Math.floor(z / CELL) * CELL;
       if (!blocks.has(k)) blocks.set(k, src.within(x0, z0, x0 + CELL, z0 + CELL).some((t) => t.zones.near(x0, z0).some((i) => woods.has(t.list[i].class))));
       return blocks.get(k);
     };
     for (let i = Math.floor((tx - R) / G); i * G < tx + R; i++) for (let j = Math.floor((tz - R) / G); j * G < tz + R; j++) {
+      if (keep < 1 && hash(i, j, 20) > keep) continue; // distance thinning first: cheap, and the survivors keep the 5 m spacing
       const [x, z, p] = cand(i, j), d = Math.hypot(x - tx, z - tz);
       if (d >= R || !wooded(x, z)) continue;
       let free = true;
@@ -258,14 +260,14 @@ export function groundcover(gc, surfaces, redraw) { // gc: the manifest groundco
       out[cls].push([d, x, z, h(15) * 6.28, s * (.9 + .2 * h(18)), s, s * (.9 + .2 * h(19)), ...tint(colors[cls], h(16), .8 + .4 * h(17)), .4]);
     }
   }
-  function orchards(tx, tz, R, out) { // citrus rows along the zone's row_angle_deg, 5 m apart, every 4.2 m, 1.5 m inside the edge; lattice anchored at the origin
+  function orchards(tx, tz, R, out, keep = 1) { // citrus rows along the zone's row_angle_deg, 5 m apart, every 4.2 m, 1.5 m inside the edge; lattice anchored at the origin
     for (const [, x0, z0] of tiles(tx, tz, R)) {
       if (full('citrus', out)) break;
       for (const deg of new Set(near(x0, z0).filter((z) => z.class === 'orchard').map((z) => z.row_angle_deg ?? 0))) { // ponytail: no row angle -> rows along x
         const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a), [u0, u1, v0, v1] = span(x0, z0, c, s);
         for (let i = Math.ceil(u0 / 4.2); i * 4.2 <= u1; i++) for (let j = Math.ceil(v0 / 5); j * 5 <= v1; j++) {
           const x = i * 4.2 * c - j * 5 * s, z = i * 4.2 * s + j * 5 * c, d = Math.hypot(x - tx, z - tz);
-          if (x < x0 || x >= x0 + T || z < z0 || z >= z0 + T || d >= R) continue;
+          if (x < x0 || x >= x0 + T || z < z0 || z >= z0 + T || d >= R || (keep < 1 && hash(i, j, Math.round(deg * 10) * 8 + 9) > keep)) continue;
           const zone = zoneAt(x, z);
           if (zone?.class !== 'orchard' || (zone.row_angle_deg ?? 0) !== deg || [[1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5]].some(([ox, oz]) => zoneClass(x + ox, z + oz) !== 'orchard')) continue;
           const h = (k) => hash(i, j, Math.round(deg * 10) * 8 + k), sc = 2.5 + .5 * h(1), w = sc * (.9 + .2 * h(5));
@@ -311,23 +313,25 @@ export function groundcover(gc, surfaces, redraw) { // gc: the manifest groundco
     m.count = n; m.visible = n > 0; m.instanceMatrix.needsUpdate = m.instanceColor.needsUpdate = true; m.computeBoundingSphere();
   }
   // ponytail: one synchronous task once the camera settles (the first also indexes the terrain); split per type over idle callbacks if the hitch shows.
-  function regenerate(tx, tz, tier, eye) {
+  function regenerate(tx, tz, tier, eye, dist = 0) {
     const start = performance.now(), out = Object.fromEntries(Object.keys(kinds).map((k) => [k, []]));
-    height ||= surface(surfaces); last = {x:tx, z:tz, tier}; dirty = false;
-    if (tier < 3) src.request(tx, tz, 650); // the 400 m tree radius plus a 250 m margin
+    const trees = reach(dist, 400, 1600), citrus = reach(dist, 250, 1000), radius = {conifer:trees, broadleaf:trees, greenhouse:trees, citrus};
+    height ||= surface(surfaces); last = {x:tx, z:tz, tier, r:trees}; dirty = false;
+    if (tier < 3) src.request(tx, tz, trees + 250); // the tree radius plus a 250 m margin
     if (tier === 0) { plants(tx, tz, out); grass(tx, tz, out); }
     if (tier < 2) walls(tx, tz, out);
-    if (tier < 3) { forest(tx, tz, 400, out); orchards(tx, tz, 250, out); tunnels(tx, tz, 400, out); }
-    for (const name in out) write(meshes[name], out[name], kinds[name][3], name === 'greenhouse' && eye);
+    if (tier < 3) { forest(tx, tz, trees, out, (400 / trees) ** 2); orchards(tx, tz, citrus, out, (250 / citrus) ** 2); tunnels(tx, tz, trees, out); }
+    for (const name in out) write(meshes[name], out[name], radius[name] || kinds[name][3], name === 'greenhouse' && eye);
     performance.measure('groundcover', {start, detail:Object.fromEntries(Object.entries(meshes).map(([k, m]) => [k, m.count]))});
     redraw();
   }
   return {group, update(camera, target) {
     const d = camera.position.distanceTo(target), tier = d < 180 ? 0 : d < 600 ? 1 : d < 2000 ? 2 : 3; // plants below 180 m, walls to 600 m, trees to 2 km
-    fade.value = Math.min(1, (2000 - d) / 1200);
+    fade.value = Math.min(1, (2000 - d) / 500);
     for (const name in meshes) if (kinds[name][4] < tier) meshes[name].visible = false;
-    if (!dirty && tier === last.tier && (tier === 3 || Math.hypot(target.x - last.x, target.z - last.z) < (tier ? 40 : 15))) return;
-    clearTimeout(timer); timer = setTimeout(() => regenerate(target.x, target.z, tier, camera.position), 150);
+    const zoomed = tier === 2 && Math.abs(reach(d, 400, 1600) - last.r) > last.r * .25; // the tree radius follows zoom
+    if (!dirty && !zoomed && tier === last.tier && (tier === 3 || Math.hypot(target.x - last.x, target.z - last.z) < (tier ? 40 : 15))) return;
+    clearTimeout(timer); timer = setTimeout(() => regenerate(target.x, target.z, tier, camera.position, d), 150);
   }};
 }
 
