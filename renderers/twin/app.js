@@ -8,8 +8,8 @@ import {shouldApply, kstDay} from '/twin/playback.mjs';
 
 const el = (id) => document.getElementById(id);
 const metricKeys = ['demand_mw', 'supply_capacity_mw', 'wind_mw', 'solar_mw', 'renewable_total_mw'];
-const layers = ['wind', 'transmission', 'substation', 'pv', 'terrain', 'buildings', 'sea', 'roads', 'vegetation', 'groundcover'];
-const sceneControls = ['inspect', 'north', 'overview', 'wind-view', 'terrain-relief', 'terrain-view', 'pv-view', 'buildings-view', 'sea-view', 'rotate', 'zoom-in', 'zoom-out', 'rotor-demo'];
+const layers = ['wind', 'transmission', 'substation', 'pv', 'terrain', 'buildings', 'sea', 'roads', 'vegetation', 'groundcover', 'harbours'];
+const sceneControls = ['inspect', 'north', 'overview', 'wind-view', 'terrain-relief', 'terrain-view', 'pv-view', 'buildings-view', 'sea-view', 'harbour-view', 'pitch-view', 'rotate', 'zoom-in', 'zoom-out', 'rotor-demo'];
 const kindNames = {wind:'풍력',transmission:'송전',hvdc:'HVDC',cable:'케이블',substation:'변전소',pv:'태양광',building:'건물'};
 const markers = new Map(), reducedMotion = matchMedia('(prefers-reduced-motion:reduce)');
 let renderer, scene, camera, controls, selected, grid, navigation, panelTool = null, returnFocus = null;
@@ -17,7 +17,7 @@ let textFacilities = [];
 let demoFrame = 0, previousTime = 0, drawing = false, socket, reconnectTimer, contextLost = false;
 let windData = null, windSocket, windReconnectTimer, windMessageTimer, windExpiryTimer, windFetchFailed = false;
 let rotorRPM = new Map();
-let mode = 'latest', seq = 0, times = [], lastLive = null, selectedAt = null, playTimer, scenario = null, dayNote = '';
+let mode = 'latest', seq = 0, genSeq = 0, times = [], lastLive = null, selectedAt = null, playTimer, scenario = null, dayNote = '';
 
 function status(id, message, failed = false) {
   el(id).textContent = message;
@@ -62,6 +62,7 @@ function openPanel(tool, origin = document.activeElement) {
   render();
 }
 function closePanel(clear = true) {
+  ++genSeq;
   el('info-panel').hidden = true; panelTool = null; document.body.dataset.panel = '';
   for (const button of document.querySelectorAll('[data-tool]')) button.setAttribute('aria-expanded','false');
   el('weather-home').append(document.querySelector('.wind-observation'));
@@ -143,6 +144,7 @@ function choose(record, focus = true) {
     const dt = document.createElement('dt'), dd = document.createElement('dd');
     dt.textContent = label; dd.textContent = value; el('facility-detail').append(dt,dd);
   }
+  showGeneration();
   for (const button of el('facilities').querySelectorAll('button')) button.setAttribute('aria-pressed',String(button.dataset.id === record.id));
   if (grid && !markers.has(record.id)) marker(record);
   grid?.highlight(record); showWind();
@@ -302,6 +304,8 @@ el('overview').onclick=()=>{enableLayer('terrain');cameraAt(grid.data.cameras.ov
 el('wind-view').onclick=()=>{enableLayer('wind');enableLayer('terrain');enableLayer('sea');cameraAt(grid.data.cameras.array);};
 el('buildings-view').onclick=()=>{enableLayer('terrain');cameraAt(grid.data.cameras.buildings);};
 el('sea-view').onclick=()=>{enableLayer('sea');enableLayer('wind');enableLayer('terrain');cameraAt(grid.data.cameras.sea);};
+el('harbour-view').onclick=()=>{enableLayer('harbours');enableLayer('terrain');enableLayer('sea');cameraAt(grid.data.cameras.hallim_harbour);};
+el('pitch-view').onclick=()=>{enableLayer('harbours');enableLayer('terrain');cameraAt(grid.data.cameras.sports_pitch);};
 el('terrain-relief').onclick=()=>{enableLayer('terrain');cameraAt(grid.data.cameras.terrain);};
 el('terrain-view').onclick=()=>{enableLayer('transmission');enableLayer('terrain');choose(grid.records.find(r=>r.id==='hub:power_line:3596'));inspect();};
 el('pv-view').onclick=()=>{enableLayer('pv');enableLayer('terrain');choose(grid.records.find(r=>r.kind==='pv'));inspect();};
@@ -364,11 +368,13 @@ function showPoint() {
   el('sim-before').textContent = mw(s?.residual_before_ess_mw); el('sim-after').textContent = mw(s?.residual_after_ess_mw);
   el('sim-ess').textContent = s ? `${mw(s.charge_mw)} / ${mw(s.discharge_mw)}` : '—';
   el('sim-soc').textContent = Number.isFinite(s?.soc_percent) ? `${s.soc_percent.toFixed(1)} %` : '—';
+  showGeneration();
 }
 async function pick() {
   if (mode === 'scenario') return showPoint();
   const index = Number(el('history-time').value), mine = ++seq;
   selectedAt = times[index]; if (!selectedAt) return;
+  showGeneration(); // ponytail: every 5-min playback step refetches its hour; cache per hour if the bridge load matters
   el('history-label').textContent = `${kst(selectedAt)} KST · ${index + 1}/${times.length} · ${dayNote}`;
   try {
     const data = await getJson(`/api/v1/jeju/state?at=${encodeURIComponent(selectedAt)}`);
@@ -408,7 +414,7 @@ for (const radio of document.querySelectorAll('[name=mode]')) radio.onchange = (
   el('time-controls').hidden = mode === 'latest'; el('scenario-form').hidden = el('scenario-metrics').hidden = mode !== 'scenario'; el('metrics').hidden = mode === 'scenario';
   el('state-source').textContent = mode === 'scenario' ? '제주 집계 관측에 배율과 사용자 가정을 적용한 계산 · 실측·예측 아님' : '지역 집계이며 개별 시설의 실측 출력이 아닙니다.';
   if (mode !== 'latest') return loadDay();
-  refreshState();
+  refreshState(); showGeneration();
   if (lastLive) showState(lastLive);
 };
 el('scenario-form').onsubmit = async (event) => {
@@ -438,6 +444,43 @@ el('scenario-form').onsubmit = async (event) => {
     el('state-source').textContent = `시뮬레이션 · 실측 아님 · 모델 ${result.model_version} · 원천 ${result.input?.source_version || '—'} · 입력 G·HVDC·ESS는 사용자 가정`;
   } catch { if (mine === seq) status('state-status', '시뮬레이션 응답을 읽지 못했습니다.', true); }
 };
+// Measured hourly farm totals (manifest.generation.facility_plants): the latest hour, or the hour holding the history/scenario time.
+// ponytail: HTTP on selection and time change only; the bridge's /api/v1/jeju/pv/ws would keep the latest value live.
+function generation(value, note) { el('generation-value').textContent = value; el('generation-note').textContent = note; }
+async function showGeneration() {
+  const plant = grid?.data.generation?.facility_plants?.[selected?.id], mine = ++genSeq;
+  el('generation').hidden = !plant;
+  if (!plant) return;
+  const latest = mode === 'latest', at = latest ? 0 : Date.parse((mode === 'history' ? times.length && selectedAt : scenario?.points[el('history-time').value]?.observed_at) || '');
+  if (!Number.isFinite(at)) return generation('—', '시각 선택 대기');
+  const hour = Math.floor(at / 3600000) * 3600000, rfc = (t) => new Date(t + 9 * 3600000).toISOString().slice(0, 19) + '+09:00';
+  const kstHour = (t) => new Date(t).toLocaleString('ko-KR', {timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false}); // with the year: the latest value can be years old
+  const card = el('generation'), query = plant + ':' + (latest ? 'latest' : hour), same = card.dataset.query === query;
+  const previousValue = same ? el('generation-value').textContent : '—', previousNote = same ? card.dataset.note || '' : '';
+  card.dataset.query = query; card.dataset.state = 'loading';
+  if (!same) card.dataset.note = '';
+  generation(previousValue, previousNote ? previousNote + ' · 갱신 중…' : '불러오는 중…');
+  try {
+    const response = await fetch(`${grid.data.generation.api}?plant_id=${plant}${latest ? '' : `&start=${encodeURIComponent(rfc(hour))}&end=${encodeURIComponent(rfc(hour + 3600000))}`}`, {signal:AbortSignal.timeout(20000), cache:'no-store'});
+    const body = await response.json().catch(() => null);
+    if (mine !== genSeq) return; // sequence guard: a reply for an older selection, mode or time never overwrites a newer one
+    if (response.status === 404 && body?.error === 'plant_not_found') { card.dataset.state = 'unavailable'; return generation('—', '브릿지에 해당 단지가 공개되지 않았습니다'); }
+    if (!response.ok || !body) throw new Error('HTTP ' + response.status);
+    if (body.schema_version !== 1 || body.energy_unit !== 'kWh' || body.interval_seconds !== 3600 || body.source_timezone !== 'Asia/Seoul' || body.timestamp_convention !== 'interval_start' || !Array.isArray(body.plants)) throw new Error('Generation contract');
+    const farm = body.plants.find((p) => p.plant?.plant_id === plant), list = farm?.observations;
+    if (farm?.plant?.fuel_type !== (selected.kind === 'wind' ? 'wind' : 'solar') || !Array.isArray(list)) throw new Error('Generation facility');
+    const obs = latest ? list.at(-1) : list.find((o) => Date.parse(o.interval_start) === hour);
+    if (!obs) { card.dataset.state = 'missing'; card.dataset.note = latest ? '최신 1시간값 없음' : `${kstHour(hour)} KST 원천 라벨의 1시간값 없음`; return generation('—', card.dataset.note); }
+    const observed = Date.parse(obs.interval_start);
+    if (typeof obs.interval_start !== 'string' || !/(Z|[+-]\d{2}:\d{2})$/.test(obs.interval_start) || !Number.isFinite(observed) || (obs.gen_kwh !== null && !Number.isFinite(obs.gen_kwh))) throw new Error('Generation observation');
+    const flags = [...(obs.quality_flags || []), ...(farm.quality_flags || [])];
+    card.dataset.state = obs.gen_kwh === null ? 'missing' : observed > Date.now() ? 'future' : Date.now() - observed > 48 * 3600000 ? 'historical' : 'available';
+    card.dataset.note = [latest ? '원천 최신 1시간값' : '선택 시각이 속한 1시간값', `${kstHour(obs.interval_start)} KST 원천 라벨`,
+      Date.now() - observed > 48 * 3600000 ? '과거 실적 · 실시간 계측 아님' : observed > Date.now() ? '미래 시각 · 원천 확인 필요' : '',
+      obs.gen_kwh === null ? '발전량 결측' : '', `품질: ${flags.join(', ') || '표시 없음'}`, farm.plant?.data_quality_note].filter(Boolean).join(' · ');
+    generation(obs.gen_kwh === null ? '—' : `${obs.gen_kwh.toLocaleString('ko-KR')} kWh`, card.dataset.note);
+  } catch { if (mine === genSeq) { card.dataset.state = 'disconnected'; generation(previousValue, [previousNote, '발전량 연결 지연 · 시설을 다시 선택하면 재시도합니다'].filter(Boolean).join(' · ')); } }
+}
 function stationDistance(coordinates, station) {
   if (!coordinates) return Infinity;
   const [lon, lat] = coordinates.map(THREE.MathUtils.degToRad);
@@ -491,7 +534,8 @@ function showWind() {
   rotorRPM = new Map([...estimates].map(([id, estimate]) => [id, estimate?.rpm || 0]));
   const estimate = selected?.kind === 'wind' ? estimates.get(selected.id) : null;
   el('wind-estimate').hidden = selected?.kind !== 'wind';
-  el('wind-estimate-power').textContent = estimate ? `${Math.round(estimate.powerKW).toLocaleString('ko-KR')} kW` : '—';
+  // ponytail: onshore turbines reuse the Tamra 3 MW curve scaled to their own rated power; per-model curves if the shape matters
+  el('wind-estimate-power').textContent = estimate ? `${Math.round(estimate.powerKW * (selected.rated_power_kw || 3000) / 3000).toLocaleString('ko-KR')} kW` : '—';
   el('wind-estimate-rpm').textContent = estimate ? `${estimate.rpm.toFixed(1)} RPM` : '—';
   el('wind-estimate-status').textContent = !estimate ? '최근 유효 관측 없음 · 추정 보류' : estimate.condition === 'below' ? '가정한 시동 풍속 3 m/s 미만 · 가능 출력 0' : estimate.condition === 'above' ? '가정한 정지 풍속 25 m/s 이상 · 가능 출력 0' : '가정 범위 내 가능 출력 · 실제 발전량 아님';
   syncDemo();

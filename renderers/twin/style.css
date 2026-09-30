@@ -81,6 +81,8 @@ body[data-panel]:not([data-panel=""]) .map-controls { right:calc(var(--panel-w) 
 #operation-state { display:block; font-size:var(--text-lg); font-weight:500; margin:var(--space-1) 0 var(--space-3); }
 .operation-metrics { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3); margin-bottom:var(--space-2); }
 .operation-metrics dd { font-size:var(--text-lg); font-variant-numeric:tabular-nums; }
+#generation { grid-column:1/-1; }
+#generation-value { font-size:var(--text-md); overflow-wrap:anywhere; }
 #inspect { width:100%; margin-bottom:var(--space-5); border:0; background:var(--selected); }
 #facility-detail dt { margin-top:var(--space-3); }
 .facility { display:flex; justify-content:space-between; align-items:center; gap:var(--space-2); border:0; }

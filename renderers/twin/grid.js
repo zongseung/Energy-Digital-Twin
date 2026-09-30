@@ -395,13 +395,16 @@ export async function loadGrid(redraw = () => {}) {
     const photo = station.photo_asset;
     const record = {...station, layer:station.kind, name:station.name || station.source_properties?.name || station.source_properties?.name_en || `시설 ${station.id.split(':').at(-1)}`};
     record.view = station.inspect || {position:vector(station.position).add(new THREE.Vector3(-100, 85, 140)).toArray(), target:vector(station.position).add(new THREE.Vector3(0, 5, 0)).toArray(), fov:48};
-    if (isWind) {
+    if (station.subtype === 'onshore') { // own position and hub height: the manifest's onshore_wind camera offset per metre of hub
+      const h = station.hub_height_m || 80;
+      record.view = {position:vector(station.position).add(new THREE.Vector3(-1.9 * h, 1.35 * h, 1.53 * h)).toArray(), target:vector(station.position).add(new THREE.Vector3(0, .67 * h, 0)).toArray(), fov:48};
+    } else if (isWind) {
       const offset = vector(station.position).sub(vector(data.facilities.find((f) => f.kind === 'wind').position));
       record.view = {...data.cameras.wind, position:vector(data.cameras.wind.position).add(offset).toArray(), target:vector(data.cameras.wind.target).add(offset).toArray()};
     }
     record.rows = [
       ['원천 좌표 (경도, 위도)', station.coordinates.map((v) => Number(v).toFixed(6)).join(', ')],
-      ...(isWind ? [
+      ...(isWind ? station.dimension_rows || [
         ['단지 공개 제원', '3 MW · 회전자 직경 91.59 m'],
         ['형상 근거', '원천 위치 / 허브·나셀·블레이드·기초 추정'],
         ['개별 발전량', '— (계측 미연결)'],
@@ -425,7 +428,7 @@ export async function loadGrid(redraw = () => {}) {
     const marker = new THREE.Points(new THREE.BufferGeometry().setFromPoints([vector(station.position).add(new THREE.Vector3(0, 15, 0))]), new THREE.PointsMaterial({color:colors[record.kind], size:9, sizeAttenuation:false}));
     object.add(marker); attach(record, marker); records.push(record);
   }
-  for (const layer of ['terrain', 'buildings', 'sea', 'roads', 'vegetation', 'groundcover']) layers.set(layer, []);
+  for (const layer of ['terrain', 'buildings', 'sea', 'roads', 'vegetation', 'groundcover', 'harbours']) layers.set(layer, []);
   const surfaces = [];
   const buildings = new Map((data.buildings?.records || []).map((b) => [b.node, b]));
   const heightBasis = {provider:'원천 높이', floors_estimated:'층수×3 m 추정', default_estimated:'속성 없음 · 1층 3.5 m 추정'};
@@ -433,7 +436,7 @@ export async function loadGrid(redraw = () => {}) {
   gltf.scene.traverse((node) => {
     if (!node.isMesh) return;
     if (node.material?.map) node.material.map.anisotropy = 8; // sharper low-angle imagery; WebGL clamps to the device maximum
-    const layer = node.name.startsWith('street_') ? 'roads' : node.name.startsWith('vegetation_') ? 'vegetation' : node.name.startsWith('groundcover_') ? 'groundcover' : /^(building|landmark)_/.test(node.name) ? 'buildings' : node.name.startsWith('ocean_surface') ? 'sea' : /terrain|shore|landcover|road/.test(node.name) ? 'terrain' : null;
+    const layer = node.name.startsWith('street_') ? 'roads' : node.name.startsWith('vegetation_') ? 'vegetation' : node.name.startsWith('groundcover_') ? 'groundcover' : /^(building|landmark)_/.test(node.name) ? 'buildings' : node.name.startsWith('ocean_surface') ? 'sea' : /^(harbour|sports)_/.test(node.name) ? 'harbours' : /terrain|shore|landcover|road/.test(node.name) ? 'terrain' : null;
     if (layer) layers.get(layer).push(node);
     if (/^(terrain_landcover_|ocean_surface)/.test(node.name)) surfaces.push(node);
     const b = layer === 'buildings' && buildings.get(node.parent?.name);
@@ -446,7 +449,7 @@ export async function loadGrid(redraw = () => {}) {
     pickables.push(node);
   });
   const visible = {wind:true, transmission:true, substation:true, terrain:true, pv:true, buildings:true, sea:true, roads:true};
-  if (layers.get('vegetation').length) visible.vegetation = true; // baked vegetation_* nodes are optional: without them the toggle is disabled
+  for (const layer of ['vegetation', 'harbours']) if (layers.get(layer).length) visible[layer] = true; // optional baked nodes: without them the toggle is disabled
   const cover = (green || data.groundcover) && groundcover(green ? {index:green} : data.groundcover, surfaces, redraw);
   if (cover) { object.add(cover.group); layers.get('groundcover').push(cover.group); visible.groundcover = true; }
   object.updateMatrixWorld(true);

@@ -18,10 +18,12 @@ const wind = new THREE.Group(); wind.name = 'wind'; wind.add(box('turbine', 0, 3
 const pv = new THREE.Group(); pv.name = 'pv'; pv.add(box('panel', 0, 7, 0)); scene.add(pv);
 const building = new THREE.Group(); building.name = 'building_group'; building.add(box('building_roof', 0, 11, 0)); scene.add(building);
 const distant = box('distant', 40, 100, 40); scene.add(distant);
+const harbour = box('harbour_seawall', -40, 3, 40); scene.add(harbour);
 let distantRays = 0; distant.raycast = () => { distantRays++; };
 const data = {
   routes: [{id:'route:1',kind:'cable',paths:[[[20, 3, -5], [20, 3, 5]]]}],
-  facilities: ['wind', 'pv'].map((kind) => ({id:kind,node:kind,kind,position:[0, kind === 'wind' ? 3 : 7, 0],coordinates:[126,33]})),
+  facilities: ['wind', 'pv'].map((kind) => ({id:kind,node:kind,kind,position:[0, kind === 'wind' ? 3 : 7, 0],coordinates:[126,33],
+    ...(kind === 'wind' && {subtype:'onshore', hub_height_m:50, dimension_rows:[['회전자 직경 / 허브 높이', '52 m / 47.26 m (추정)']]})})),
   coordinateFrame:{origin_lon_lat:[126,33]}, cameras:{wind:{position:[0,30,0],target:[0,0,0]}},
   buildings:{records:[{id:'building:1',node:'building_group',position:[0,11,0],walls_m:2,height_status:'provider',roof_rule:'flat_parapet'}]},
 };
@@ -37,6 +39,11 @@ try {
   assert.equal(grid.groundHeight(500,500),0,'uncovered coordinates remain finite');
   assert.equal(grid.groundHeight(NaN,0),0,'nonfinite input cannot poison camera');
   assert.equal(distantRays,0,'spatially distant meshes are not raycast');
+  const turbine = grid.records.find((r) => r.id === 'wind');
+  assert.deepEqual(turbine.rows.slice(1), [['회전자 직경 / 허브 높이', '52 m / 47.26 m (추정)']], 'onshore rows come from the record');
+  assert.deepEqual([turbine.view.target, turbine.view.position.map(Math.round)], [[0, 3 + 33.5, 0], [-95, 71, 77]], 'onshore view from its own position and hub');
+  assert.equal(grid.visible.harbours, true, 'harbour_* nodes form a visible layer');
+  grid.setLayer('harbours', false); assert.equal(harbour.visible, false); grid.setLayer('harbours', true);
   const camera = new THREE.PerspectiveCamera(50,1,.1,1000); camera.position.set(0,30,0); camera.lookAt(0,0,0); camera.updateMatrixWorld();
   for (const node of grid.pickables) if (node.isPoints) node.visible = false;
   assert.deepEqual(grid.pick(camera,{x:0,y:0}).map((r) => r.id),['building:1','pv','wind']);
@@ -50,5 +57,5 @@ try {
   assert.deepEqual(grid.pick(camera,{x:0,y:0}),[],'hidden descendant cannot be selected');
   camera.position.set(20,30,0); camera.lookAt(20,3,0); camera.updateMatrixWorld(); grid.resize(800,800);
   assert.deepEqual(grid.pick(camera,{x:0,y:0}).map((r) => r.id),['route:1'],'Line2 receives a camera');
-  console.log('PASS map grid: bounds, roof/terrain/fallback heights, spatial culling, hidden ancestors/children/layers, ordered unique picking, firstOnly, Line2');
+  console.log('PASS map grid: bounds, roof/terrain/fallback heights, spatial culling, hidden ancestors/children/layers, ordered unique picking, firstOnly, Line2, harbour layer, onshore rows/view');
 } finally { globalThis.fetch = originalFetch; GLTFLoader.prototype.loadAsync = originalLoad; }

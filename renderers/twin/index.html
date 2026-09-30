@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2318191d'/%3E%3Cpath d='M17 4 8 18h7l-1 10 10-15h-8z' fill='%2372cbd5'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/site/style.css"><link rel="stylesheet" href="/twin/style.css?v=map-first-20260930">
   <script type="importmap">{"imports":{"three":"/vendor/build/three.module.js","three/addons/":"/vendor/examples/jsm/"}}</script>
-  <script type="module" src="/twin/app.js?v=map-first-20260930"></script>
+  <script type="module" src="/twin/app.js?v=plant51-20260930"></script>
 </head>
 <body>
   <a class="skip-link" href="#tool-facilities">시설 목록으로 이동</a>
@@ -33,7 +33,7 @@
         <button id="zoom-out" disabled aria-label="지도 축소">−</button>
         <button id="overview" disabled aria-label="구역 전체 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span class="sr-only">전체 보기</span></button>
         <details id="view-menu"><summary>시점</summary><div class="view-options">
-          <button id="wind-view" disabled>풍력·해안</button><button id="terrain-relief" disabled>고도·지형</button><button id="buildings-view" disabled>마을·영상</button><button id="sea-view" disabled>바다</button><button id="terrain-view" disabled>한림 선로</button><button id="pv-view" disabled>태양광</button><button id="rotate" disabled>시점 회전</button>
+          <button id="wind-view" disabled>풍력·해안</button><button id="terrain-relief" disabled>고도·지형</button><button id="buildings-view" disabled>마을·영상</button><button id="sea-view" disabled>바다</button><button id="harbour-view" disabled>한림항</button><button id="pitch-view" disabled>체육시설</button><button id="terrain-view" disabled>한림 선로</button><button id="pv-view" disabled>태양광</button><button id="rotate" disabled>시점 회전</button>
         </div></details>
       </div>
       <p id="map-status" role="status">지형과 시설을 불러오는 중…</p>
@@ -48,7 +48,7 @@
       <div id="panel-body" class="panel-body">
         <section data-panel="detail" hidden>
           <p id="selection-status" class="note muted" role="status"></p><h3 id="selected-name">시설 선택</h3>
-          <section id="operation-summary" class="operation-summary" aria-label="개별 시설 실측 상태"><p class="note muted">실측 가동 상태</p><strong id="operation-state">확인 불가</strong><dl class="operation-metrics"><div><dt>실측 출력</dt><dd id="operation-power">—</dd></div><div><dt>계측 시각</dt><dd>—</dd></div></dl><p class="note muted">개별 계측 미연결 · 시연 회전과 다른 정보입니다</p></section>
+          <section id="operation-summary" class="operation-summary" aria-label="개별 시설 실측 상태"><p class="note muted">실측 가동 상태</p><strong id="operation-state">확인 불가</strong><dl class="operation-metrics"><div><dt>실측 출력</dt><dd id="operation-power">—</dd></div><div><dt>계측 시각</dt><dd>—</dd></div><div id="generation" aria-live="polite" hidden><dt>원천 1시간 발전 실적 · 단지 합계(개별 터빈 아님)</dt><dd id="generation-value">—</dd><dd id="generation-note" class="note muted"></dd></div></dl><p class="note muted">개별 계측 미연결 · 시연 회전과 다른 정보입니다</p></section>
           <button id="inspect" disabled>가까이 보기</button>
           <div id="detail-weather"></div>
           <div id="wind-estimate" hidden><p class="note muted">인근 풍속 기반 모델</p><p><strong>추정 가능 출력</strong> <span id="wind-estimate-power">—</span></p><p class="note">회전 시연 <span id="wind-estimate-rpm">—</span></p><p id="wind-estimate-status" class="note muted">최근 관측 대기</p></div>
@@ -58,12 +58,12 @@
         <section data-panel="facilities" hidden>
           <p class="muted">현재 구역의 시설을 선택하세요.</p>
           <label for="facility-search">시설 검색</label><input id="facility-search" type="search" placeholder="시설명 또는 ID" autocomplete="off">
-          <label for="facility-filter">시설 종류</label><select id="facility-filter"><option value="">전체 시설</option value="wind">풍력</option><option value="pv">태양광</option><option value="substation">변전소</option><option value="transmission">송전·케이블</option></select>
+          <label for="facility-filter">시설 종류</label><select id="facility-filter"><option value="">전체 시설</option><option value="wind">풍력</option><option value="pv">태양광</option><option value="substation">변전소</option><option value="transmission">송전·케이블</option></select>
           <p id="facility-count" class="note muted"></p><ul id="facilities"></ul><p id="facility-empty" hidden>검색 결과가 없습니다. 검색어나 종류를 바꿔주세요.</p><button id="facility-reset" hidden>검색·필터 초기화</button>
         </section>
         <section data-panel="layers" hidden>
           <fieldset id="grid-layers"><legend>에너지 시설</legend>
-            <label class="layer-toggle"><input id="layer-wind" type="checkbox" checked disabled><span class="legend wind">풍력 10기</span></label>
+            <label class="layer-toggle"><input id="layer-wind" type="checkbox" checked disabled><span class="legend wind">풍력 20기 · 해상 10 / 육상 10</span></label>
             <label class="layer-toggle"><input id="layer-transmission" type="checkbox" checked disabled><span class="legend transmission">송전선·케이블</span></label>
             <label class="layer-toggle"><input id="layer-substation" type="checkbox" checked disabled><span class="legend station">변전소</span></label>
             <label class="layer-toggle"><input id="layer-pv" type="checkbox" checked disabled><span class="legend pv">태양광 예시 3곳</span></label>
@@ -74,6 +74,7 @@
             <label class="layer-toggle"><input id="layer-roads" type="checkbox" checked disabled>도로</label>
             <label class="layer-toggle"><input id="layer-vegetation" type="checkbox" checked disabled>식생</label>
             <label class="layer-toggle"><input id="layer-groundcover" type="checkbox" checked disabled>밭·논·초지·밭담</label>
+            <label class="layer-toggle"><input id="layer-harbours" type="checkbox" checked disabled>항구·체육시설 · 위치 실제 / 높이·형상 추정</label>
             <label class="layer-toggle"><input id="layer-sea" type="checkbox" checked disabled>바다</label>
           </fieldset>
           <details class="sources"><summary>환경 형상과 원천 자료</summary><p>건물 위치·윤곽·지붕영상은 원천 자료이며, 지붕 형태·외벽·일부 높이는 추정입니다. 신창 건물 2,661동: 원천 높이 623동 · 층수×3 m 887동 · 1층 3.5 m 가정 1,151동.</p><p>도로 경로·폭과 식생·토지피복 구역은 원천 자료입니다. 포장·차선·개별 나무·작물·밭담 위치는 추정입니다. 바다는 기존 영상이며 조위·수심은 미반영입니다.</p></details>
