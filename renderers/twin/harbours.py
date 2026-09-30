@@ -73,8 +73,9 @@ pbr = lambda name, rgb, rough=.85, metal=0., **kw: PBRMaterial(name=name, baseCo
                                                                   roughnessFactor=rough, **kw)
 MATERIALS = {name: pbr(name, rgb, *rest) for name, rgb, *rest in [
     ("harbour_breakwater_crest", (182, 180, 172)), ("harbour_breakwater_wall", (132, 130, 124)), ("harbour_parapet", (170, 168, 160)),
-    ("harbour_armour", (150, 150, 146), .95), ("harbour_quay_apron", (168, 166, 158)), ("harbour_quay_wall", (132, 130, 124)),
-    ("harbour_seawall", (140, 138, 130)), ("harbour_steps", (160, 158, 150)),
+    # Seawall and quay: weathered concrete. glTF base colours are linear, so ~0.18 (sRGB ~118) stays grey in full sun; 0.55 read as white.
+    ("harbour_armour", (150, 150, 146), .95), ("harbour_quay_apron", (66, 64, 60), .95), ("harbour_quay_wall", (44, 43, 40), .97),
+    ("harbour_seawall", (46, 45, 42), .97), ("harbour_steps", (60, 58, 55), .95),
     ("sports_turf", (68, 120, 58), .9), ("sports_court", (56, 104, 124), .7), ("sports_lines", (238, 238, 232), .7),
     ("sports_track", (170, 70, 54), .9), ("sports_concourse", (172, 170, 162)),
     ("sports_stands", (150, 152, 158)), ("sports_goals", (235, 235, 235), .4, .1), ("sports_poles", (160, 164, 168), .4, .6)]}
