@@ -1,0 +1,19 @@
+PASS: early goals and MVP use current scene
+PASS: problem and beneficiaries
+PASS: scene is not electrical boundary
+PASS: geometry sources and same-camera acceptance
+PASS: shared asset specifications
+PASS: weather source time and quality
+PASS: irradiance separately sourced with units
+PASS: PV physical chain and validation
+PASS: statistics and missing history limits
+PASS: no false curtailment
+PASS: observed estimated planned modeled labels
+PASS: existing stack reuse
+PASS: historical sections 14–18 preserved verbatim
+PASS: all added local links resolve
+PASS: scene and generic PV facts match source
+PASS: git diff --check
+document_sha256: c15dbf4d9a0deda67066486cca10de9ee078fb4416baabaf417adab177f31d41
+added_local_links: ['docs/estimated-twin.md', 'docs/real-facility-weather-sources.md', 'docs/simulation.md', 'jeju_power_grid_implementation_plan.md']
+checks: 16/16

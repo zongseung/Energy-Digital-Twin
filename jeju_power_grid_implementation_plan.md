@@ -2,13 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 현재 서버에는 데이터 브릿지·방법론만 구현하고, GPU 서버에서 Rust 앱·Redis·수급/ESS 시뮬레이션·사진 기반 3D 환경을 작성·빌드·실행한다.
+**Goal:** 현재 제작 중인 제주 한 구역에서 PV 한 곳의 실제 형상·방위·경사를 검증하고, 같은 설비 명세를 3D와 발전량 모델에 사용한다. 기존 Rust 앱·Redis·지역 수급/ESS·통합 장면을 재사용하며, 현재 관측 기상 표시부터 확장한다. 구역을 한경 행정구역 또는 독립 전력계통으로 확정하지 않는다.
 
 **Architecture:** 현재 서버의 작은 Rust 브릿지가 기존 DB에서 SELECT한 GIS·관측·과거 자료를 전달한다. `user@192.9.59.208:10000`의 GPU 서버에 제품 Rust 백엔드·앱 Redis·시뮬레이션·3D 제작·렌더러를 구현한다. 브릿지와 앱은 SSH 터널의 HTTP/WebSocket으로 연결한다. TRELLIS.2는 GPU 0, 렌더러는 GPU 1, API·전력 계산은 GPU 서버의 CPU를 사용한다. TRELLIS.2와 Omniverse 우선 연동은 추천안이며 Unity/Unreal은 교환 자산 검증 대상이다.
 
 **Tech Stack:** 브릿지: Rust·axum/ws·tokio·serde·sqlx/Postgres. GPU 앱: Rust·axum/ws·tokio·serde·HTTP/WS 클라이언트·redis/async·chrono·tracing. 각각 작은 Cargo package와 Docker Compose. GPU 자산 제작은 별도 Python/CUDA 배치 컨테이너, 교환 자산은 GLB/OpenUSD. 현재 서버의 Rust 1.96.0과 GPU 서버의 Rust 환경은 별개이며 실제 호환 버전은 각 첫 빌드에서 확정하고 lockfile에 고정한다.
 
-**Spec:** [기획서 v0.3](jeju_power_grid_digital_twin_design.md), 특히 7·10·11·16·17·18절.
+**Spec:** [최신 기획서](jeju_power_grid_digital_twin_design.md), 특히 1·3·7·10·11·19절. [실제 시설·기상 원천 대장](docs/real-facility-weather-sources.md)에 확인한 값과 미확보 자료를 구분한다. 아래 기존 Tasks 0–7과 서버 이전 설명은 누적 실행 이력이며, 이번 우선순위는 Tasks 8–10이다.
+
+**이번 변경 범위 (2026-09-30):** 기획서와 원천 대장을 보완하고, 기존 기상청 AWS 단일 수집/WS 흐름에 기온·상대습도·최근 60분 누적 강수량 표시를 추가한다. 실제 PV 배치도·설치 각도·시설별 출력 계측 및 시각이 맞는 일사 입력이 아직 확보되지 않아, 실제 형상 교체와 검증된 발전량·효과 수치를 이번 완료 항목으로 삼지 않는다.
 
 **Status (2026-09-30):** Task 0 bridge checks are from `feat/async-data-bridge@9a94596`; current source branch tip is `3cc3a3b` (5 commits pulled from `03e02ef` on 2026-09-30). The previously transferred geography snapshot remains `03e02ef`; newly documented supplementary power/ASOS/building-registry files remain on the source server. The earlier geography files were transferred and validated, and live bridge→GPU app health/GIS/timeline/exact-state/WS checks passed. The real daily profile correctly reports one missing interval as incomplete; its contiguous 287 intervals run net-load-only because G/H are absent. Tunnel disconnect/manual recovery passed; automatic tunnel startup is unimplemented. DEM vertical datum/license remain unknown. A separate user-approved prototype now places 10 estimated turbines at source GIS coordinates and connects a regional observation to the browser/Omniverse scene. The model-to-facility match and most dimensions are tentative, so recognizable actual-site appearance and physical validation remain unproven. Earlier source-GIS mock QA is runtime validation only. User acceptance and Task 6 remain incomplete against design §§1, 3, and 14.7; independent visual review is pending. Review records: [serving](docs/serving-review.md), [cache](docs/cache-review.md).
 
@@ -251,6 +253,35 @@
 - [x] Compose/Docker HTTP simulation·CLI replay 및 fixture 오류 경계 통과 후, 실제 tunnel에서 health·GIS·timeline·두 exact state·WS snapshot 및 SSH master 단절/수동 복구를 확인했다. Real full-day gap handling은 위 기록과 같으며 renderer 미연결이다. 운영 DB/service는 변경·중지하지 않았다.
 - [ ] 현재 README에는 브릿지·전송·방법론을, GPU README에는 제품 실행·추론·렌더링·실제 검사·미확보 입력을 기록한다. `.env`·연결 문자열이 빌드 context·로그·브라우저 산출물에 없는지 확인한다.
 - [ ] 완료 기준: 백엔드 계약·수급/ESS 정확성·Docker 실행은 각각 확인하고, 전체 디지털 트윈 완료는 Tasks 5–6의 실제 사진 기반 3D 통합까지 충족했을 때만 선언한다.
+
+## Task 8: 현재 관측 기상 표시 확장
+
+**Files:** `src/weather.rs`, `renderers/twin/app.js`, `renderers/twin/index.html` 및 기존 인라인 검사. 기존 AWS 수집과 `/api/v1/jeju/wind/stations`, `/wind/ws` 계약을 확장한다.
+
+- [x] 기존 풍속·풍향 흐름과 관측소 선택을 확인하고, 공식 `awsTmp`, `awsReh`, `awsPcpHr1`의 값·단위·기간을 대조한다.
+- [x] 선택한 관측소의 `temperature_c`, `relative_humidity_percent`, `precipitation_1h_mm`를 nullable로 추가한다. 같은 관측시각의 값만 묶으며 누락을 0으로 채우지 않는다. 영하 기온·습도 0/100·강수 0을 보존하고 잘못된 요소가 다른 유효 요소를 지우지 않게 한다.
+- [x] 기존 패널에 기온·습도·최근 1시간 강수를 표시하고 출처·관측소·거리·관측시각·지연 상태를 공유한다. 수신시각은 API/WS에서 보존해 관측시각과 함께 검증한다. 60초 서버 수집·단일 WS를 재사용한다. 일사나 시설 실측으로 표기하지 않는다.
+- [x] 인라인 parser/API 검사, fmt/clippy, 기존 회귀 검사, 실제 HTTP/WS 및 데스크톱·모바일 화면에서 단위·결측·지연·복구를 확인했다. 전체 실행 검사 50개 통과·전용 Redis 환경 검사 4개 제외, 실제 1280/375px 화면·WS 값 일치와 결측/지연 시나리오 통과. [구현 근거](.omo/evidence/real-weather/implementation-evidence.md), [실제 화면 검증](.omo/evidence/real-weather/runtime-qa.json), [독립 코드 검토](.omo/evidence/real-weather/code-review.md).
+
+## Task 9: 실제 PV 한 곳의 형상 채택
+
+**Files:** 현재 `renderers/twin/grid-spec.json`·기존 장면 생성기와 자산 manifest. 새 파이프라인을 만들기 전에 해당 명세/생성기의 확장으로 해결한다.
+
+- [x] 현재 표시된 PV 3곳의 등록 ID·좌표·용량·동일 좌표 중복을 확인했다. 상세 판정은 [원천 대장](docs/real-facility-weather-sources.md) 및 [실행 근거](.omo/evidence/facility-sources-verification-20260930.md)다.
+- [ ] 등록 ID–실필지–설비의 동일성이 확인된 한 곳을 확정하고 배치도/준공도/CAD 또는 축척과 위치를 검증한 현장 자료를 확보한다. 현재 점 좌표와 일반 4×8 배열만으로 시설을 확정하지 않는다.
+- [ ] 한 명세에 패널 규격·수량·행 간격·설치높이·진북 방위각·경사각·고정/추적식·DC/AC 용량, 필드별 출처/추정 여부/자료일을 기록한다. 도면·현장 불일치는 준공 상태를 우선 검증한다.
+- [ ] 현재 장면 생성기가 명세를 읽어 실제 배열을 만든다. 3D 회전축과 전력 모델의 방위각 정의를 대조하고 평면·측면·사선 시점의 기준 자료와 비교한다. 미확인 치수는 추정으로 남긴다.
+
+**착수 조건:** 현재 시설과 대응되는 도면·정확한 필지·각도/치수 근거가 필요하다. 이번 공개 자료 조사에서는 확보하지 못했으며, 보유 사업계획서·준공도 또는 운영자 제공 자료의 검증을 다음 단계로 둔다.
+
+## Task 10: 기상·설비 명세를 이용한 계산과 통계 검증
+
+**Files:** 기존 CPU 계산 모듈과 시나리오 입력. 첫 범위는 PV 한 곳이며 실제 접속·정격·P/Q가 없는 계통 전체 해석은 분리한다.
+
+- [ ] 시설에 대응하는 일사(GHI/직달/산란 구분), 기온·풍속과 실제 발전량 시계열을 확보하고 시간 구간·단위·결측·일별 경계를 검증한다. 1시간 MJ/m²를 평균 W/m²로 환산할 때 구간을 보존하며 5분 실측으로 복제하지 않는다.
+- [ ] 같은 설비 명세의 위치·경사·방위로 태양 위치와 경사면 일사를 계산하고 온도·인버터·손실 근거로 출력을 추정한다. 습도·강수를 임의 출력 저감계수로 사용하지 않는다. 일사 미확보 시 기상 표시만 제공한다.
+- [ ] 실측과 시간순 rolling 평가로 기준 모델 대비 MAE·예측구간의 포함률을 비교한다. 시계열 누출을 막고 결측률·표본 기간·계절 대표성을 공개한다.
+- [ ] 실제 가용 발전량·출력제어·접속/운영 제약이 확보된 뒤 S0/ESS 시나리오 효과를 비교한다. 일/주 block bootstrap 신뢰구간과 평가 표본을 기록하며 시뮬레이션 효과와 현장 효과를 구분한다.
 
 ## Self-review and Execution Handoff
 
