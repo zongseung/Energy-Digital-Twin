@@ -32,7 +32,7 @@
 
 **Files:** Create `renderers/twin/photo_assets.py`; create `renderers/twin/test_photo_assets.py`.
 
-**Interfaces:** `load_placements(path: Path, facilities: list[dict], frame: dict) -> dict[str, dict]`는 검증된 등록만 돌려주고 실패 시 `ValueError`를 낸다. 등록 JSON은 `schema_version: 1`, `assets: []`이며 항목은 `facility_id`, `generated_dir`, `photo_path`, `photo_sha256`, `asset_sha256`, `license`, `facility_match_evidence`, `asset_anchor_xyz`, `length_endpoints_xyz`(두 점), `length_m`, `up_axis: "Y"`, `yaw_degrees`, `status: "verified_for_placement"`를 가진다. 시설 좌표·기준 위치는 기존 facility manifest에서 읽고 별도 수동 좌표로 덮어쓰지 않는다. `place_asset(dest: trimesh.Scene, facility: dict, placement: dict, root: Path) -> list[str]`는 기준점과 길이로 GLB 메시를 변환·추가하고 새 노드 이름을 반환한다.
+**Interfaces:** `load_placements(path: Path, facilities: list[dict], frame: dict) -> dict[str, dict]`는 검증된 등록만 돌려주고 실패 시 `ValueError`를 낸다. 등록 JSON은 `schema_version: 1`, `assets: []`이며 항목은 `facility_id`, `generated_dir`, `photo_path`, `photo_sha256`, `asset_sha256`, `license`, `facility_match_evidence`, `length_evidence`, `orientation_evidence`, `asset_anchor_xyz`, `length_endpoints_xyz`(두 점), `length_m`, `up_axis: "Y"`, `yaw_degrees`, `status: "verified_for_placement"`를 가진다. 시설 좌표·기준 위치는 기존 facility manifest에서 읽고 별도 수동 좌표로 덮어쓰지 않는다. `place_asset(dest: trimesh.Scene, facility: dict, placement: dict, root: Path) -> list[str]`는 기준점과 길이로 GLB 메시를 변환·추가하고 새 노드 이름을 반환한다.
 
 - [ ] **Step 1: 실패 검사 작성.** `test_photo_assets.py`에 임시 2m 박스 GLB와 등록 JSON을 만들고, 정상 길이 10m가 균일 배율 5·기존 시설 기준점 위치로 변환되는지 검사한다. 다른 ID·빈 증거/라이선스·음수/NaN 길이·누락 yaw·잘못된 hash·배치 상태 `generated_unvalidated`를 각각 거부하는 하나의 table-driven 검사와 빈 목록 무변경 검사를 작성한다.
 - [ ] **Step 2: 실패 확인.** `uv run --script renderers/twin/test_photo_assets.py`가 구현 전 예상된 import 실패를 보여야 한다.
