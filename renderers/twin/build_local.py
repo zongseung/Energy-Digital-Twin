@@ -102,6 +102,30 @@ def copy_nodes(source: trimesh.Scene, dest: trimesh.Scene, roots: set[str], terr
                           **({"geometry": geometry} if geometry else {}))
 
 
+def surface_height(scene: trimesh.Scene):
+    """Return height(x, z) of the displayed terrain/sea triangles (highest where they overlap)."""
+    tris = []
+    for name, mesh in scene.geometry.items():
+        if name == "ocean_surface" or name.startswith("terrain_landcover_"):
+            transform = scene.graph[scene.graph.geometry_nodes[name][0]][0]
+            tris.append(trimesh.transform_points(mesh.vertices, transform)[mesh.faces])
+    tris = np.concatenate(tris)
+    tree = shapely.STRtree(shapely.polygons(tris[:, :, [0, 2]]))
+
+    def height(x, z):
+        x, z = np.atleast_1d(np.asarray(x, float)), np.atleast_1d(np.asarray(z, float))
+        point_index, tri_index = tree.query(shapely.points(x, z), predicate="intersects")
+        a, b, c = (tris[tri_index, k] for k in range(3))
+        d = (b[:, 2] - c[:, 2]) * (a[:, 0] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (a[:, 2] - c[:, 2])
+        u = ((b[:, 2] - c[:, 2]) * (x[point_index] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (z[point_index] - c[:, 2])) / d
+        v = ((c[:, 2] - a[:, 2]) * (x[point_index] - c[:, 0]) + (a[:, 0] - c[:, 0]) * (z[point_index] - c[:, 2])) / d
+        y = np.full(len(x), -np.inf)
+        np.maximum.at(y, point_index, u * a[:, 1] + v * b[:, 1] + (1 - u - v) * c[:, 1])
+        assert np.isfinite(y).all(), "point outside displayed terrain"
+        return y
+    return height
+
+
 def apply_imagery(scene: trimesh.Scene, image_path: Path, metadata: dict, frame: dict) -> None:
     """Texture the existing DSM vertices with their actual map positions."""
     assert metadata["crs"] == "EPSG:3857"
