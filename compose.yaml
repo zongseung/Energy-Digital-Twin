@@ -39,7 +39,7 @@ services:
       BRIDGE_BASE_URL: ${BRIDGE_BASE_URL:-}
       REDIS_URL: ${REDIS_URL:-redis://127.0.0.1:6380/0}
       RUST_LOG: ${RUST_LOG:-jeju_twin=info}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://127.0.0.1:8080,http://127.0.0.1:18080,http://localhost:18080}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://127.0.0.1:8080,http://localhost:8080,http://127.0.0.1:18080,http://localhost:18080}
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

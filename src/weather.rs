@@ -51,7 +51,10 @@ struct StationCache {
 struct Observation {
     observed_at: DateTime<Utc>,
     received_at: DateTime<Utc>,
-    speed_m_s: f64,
+    speed_m_s: Option<f64>,
+    temperature_c: Option<f64>,
+    relative_humidity_percent: Option<f64>,
+    precipitation_1h_mm: Option<f64>,
     direction_from_deg: Option<f64>,
     direction_label: Option<&'static str>,
 }
@@ -80,11 +83,14 @@ struct Item {
     lon: String,
     tm: Option<serde_json::Value>,
     aws_ws10: Option<serde_json::Value>,
+    aws_tmp: Option<serde_json::Value>,
+    aws_reh: Option<serde_json::Value>,
+    aws_pcp_hr1: Option<serde_json::Value>,
     aws_wd10: Option<serde_json::Value>,
     aws_trobl_knd: Option<serde_json::Value>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum Status {
     Fresh,
@@ -105,6 +111,10 @@ struct Station {
 #[derive(Serialize)]
 struct WindResponse {
     status: Status,
+    weather_status: Status,
+    temperature_c: Option<f64>,
+    relative_humidity_percent: Option<f64>,
+    precipitation_1h_mm: Option<f64>,
     source: &'static str,
     source_url: &'static str,
     station: Station,
@@ -311,7 +321,24 @@ impl Weather {
             quality_flags.push("source_delayed");
         }
         WindResponse {
-            status,
+            weather_status: if observation.is_some_and(|value| {
+                value.temperature_c.is_some()
+                    || value.relative_humidity_percent.is_some()
+                    || value.precipitation_1h_mm.is_some()
+            }) {
+                status
+            } else {
+                Status::Unavailable
+            },
+            status: if observation.is_some_and(|value| value.speed_m_s.is_some()) {
+                status
+            } else {
+                Status::Unavailable
+            },
+            temperature_c: observation.and_then(|value| value.temperature_c),
+            relative_humidity_percent: observation
+                .and_then(|value| value.relative_humidity_percent),
+            precipitation_1h_mm: observation.and_then(|value| value.precipitation_1h_mm),
             source: "기상청 날씨누리",
             source_url: SOURCE_URL,
             station: station.station.clone(),
@@ -319,7 +346,7 @@ impl Weather {
                 .map(|value| value.observed_at.to_rfc3339_opts(SecondsFormat::Secs, true)),
             received_at: observation
                 .map(|value| value.received_at.to_rfc3339_opts(SecondsFormat::Secs, true)),
-            speed_m_s: observation.map(|value| value.speed_m_s),
+            speed_m_s: observation.and_then(|value| value.speed_m_s),
             direction_from_deg: observation.and_then(|value| value.direction_from_deg),
             direction_label: observation.and_then(|value| value.direction_label),
             directional_resolution_deg: 22.5,
@@ -421,24 +448,50 @@ fn parse_observation(item: &Item, received_at: DateTime<Utc>) -> Option<Observat
     if observed_at > received_at + TimeDelta::seconds(60) {
         return None;
     }
-    let speed_m_s = item.aws_ws10.as_ref()?.as_str()?.parse::<f64>().ok()?;
-    if !speed_m_s.is_finite() || speed_m_s < 0.0 {
+    let temperature_c =
+        parse_number(item.aws_tmp.as_ref()).filter(|value| (-90.0..=60.0).contains(value));
+    let relative_humidity_percent =
+        parse_number(item.aws_reh.as_ref()).filter(|value| (0.0..=100.0).contains(value));
+    let precipitation_1h_mm = parse_number(item.aws_pcp_hr1.as_ref()).filter(|value| *value >= 0.0);
+    let mut speed_m_s = parse_number(item.aws_ws10.as_ref()).filter(|value| *value >= 0.0);
+    let direction = item
+        .aws_wd10
+        .as_ref()
+        .and_then(serde_json::Value::as_str)
+        .and_then(|label| DIRECTIONS.iter().find(|(name, _)| *name == label));
+    let (direction_from_deg, direction_label) = match (speed_m_s, direction) {
+        (Some(0.0) | None, _) => (None, None),
+        (Some(_), Some(&(label, degrees))) => (Some(degrees), Some(label)),
+        (Some(_), None) => {
+            speed_m_s = None;
+            (None, None)
+        }
+    };
+    if speed_m_s.is_none()
+        && temperature_c.is_none()
+        && relative_humidity_percent.is_none()
+        && precipitation_1h_mm.is_none()
+    {
         return None;
     }
-    let (direction_from_deg, direction_label) = if speed_m_s == 0.0 {
-        (None, None)
-    } else {
-        let label = item.aws_wd10.as_ref()?.as_str()?;
-        let &(label, degrees) = DIRECTIONS.iter().find(|(name, _)| *name == label)?;
-        (Some(degrees), Some(label))
-    };
     Some(Observation {
         observed_at,
         received_at,
         speed_m_s,
+        temperature_c,
+        relative_humidity_percent,
+        precipitation_1h_mm,
         direction_from_deg,
         direction_label,
     })
+}
+
+fn parse_number(value: Option<&serde_json::Value>) -> Option<f64> {
+    value?
+        .as_str()?
+        .parse::<f64>()
+        .ok()
+        .filter(|value| value.is_finite())
 }
 
 const DIRECTIONS: [(&str, f64); 16] = [
@@ -535,6 +588,101 @@ mod tests {
         parse(&serde_json::to_vec(value).unwrap(), now)
     }
 
+    #[test]
+    fn weather_fields_are_independent_and_share_observation_freshness() {
+        let now = at("2026-09-29T17:31:00Z");
+        let mut row = item(185, "고산", "202609300230", "3.5", "북동");
+        row["awsTmp"] = json!("-2.5");
+        row["awsReh"] = json!("82");
+        row["awsPcpHr1"] = json!("0");
+        let response = |row: Value, time, succeeded| {
+            let batch = parsed(&source(json!([row])), now).unwrap();
+            let cache = Cache {
+                last_poll_succeeded: succeeded,
+                poll_attempted: true,
+                ..Cache::default()
+            };
+            serde_json::to_value(Weather::station_response(
+                &cache,
+                &batch.stations[&185],
+                time,
+            ))
+            .unwrap()
+        };
+        let fresh = response(row.clone(), now, true);
+        assert_eq!(fresh["temperature_c"], -2.5);
+        assert_eq!(fresh["relative_humidity_percent"], 82.0);
+        assert_eq!(fresh["precipitation_1h_mm"], 0.0);
+        assert_eq!(fresh["status"], "fresh");
+        assert_eq!(fresh["weather_status"], "fresh");
+        assert_eq!(fresh["observed_at"], "2026-09-29T17:30:00Z");
+        for (time, succeeded) in [(now + TimeDelta::seconds(151), true), (now, false)] {
+            let stale = response(row.clone(), time, succeeded);
+            assert_eq!(stale["weather_status"], "stale");
+            assert_eq!(stale["temperature_c"], -2.5);
+        }
+        for (field, output) in [
+            ("awsTmp", "temperature_c"),
+            ("awsReh", "relative_humidity_percent"),
+            ("awsPcpHr1", "precipitation_1h_mm"),
+        ] {
+            for invalid in [
+                Value::Null,
+                json!(""),
+                json!("-"),
+                json!("NaN"),
+                json!("inf"),
+                json!("-99"),
+                json!("-99.9"),
+                json!("-999"),
+                json!("Infinity"),
+                json!({}),
+                json!(12),
+            ] {
+                let mut changed = row.clone();
+                changed[field] = invalid;
+                let result = response(changed, now, true);
+                assert!(result[output].is_null(), "accepted {field}");
+                assert_eq!(result["speed_m_s"], 3.5);
+                assert_eq!(result["status"], "fresh");
+                assert_eq!(
+                    result[if output == "temperature_c" {
+                        "relative_humidity_percent"
+                    } else {
+                        "temperature_c"
+                    }],
+                    fresh[if output == "temperature_c" {
+                        "relative_humidity_percent"
+                    } else {
+                        "temperature_c"
+                    }]
+                );
+            }
+        }
+        for (field, input, output, expected) in [
+            ("awsReh", "100", "relative_humidity_percent", json!(100.0)),
+            ("awsReh", "0", "relative_humidity_percent", json!(0.0)),
+            ("awsReh", "101", "relative_humidity_percent", Value::Null),
+            ("awsPcpHr1", "-0.1", "precipitation_1h_mm", Value::Null),
+            ("awsPcpHr1", "1.5", "precipitation_1h_mm", json!(1.5)),
+        ] {
+            let mut changed = row.clone();
+            changed[field] = json!(input);
+            assert_eq!(response(changed, now, true)[output], expected);
+        }
+        row["awsWs10"] = json!("-");
+        let weather_only = response(row.clone(), now, true);
+        assert_eq!(weather_only["temperature_c"], -2.5);
+        assert!(weather_only["speed_m_s"].is_null());
+        assert_eq!(weather_only["status"], "unavailable");
+        assert_eq!(weather_only["weather_status"], "fresh");
+        row["tm"] = Value::Null;
+        assert_eq!(response(row, now, true)["weather_status"], "unavailable");
+        let missing = response(item(185, "고산", "202609300230", "3.5", "북동"), now, true);
+        assert_eq!(missing["weather_status"], "unavailable");
+        assert!(missing["temperature_c"].is_null());
+    }
+
     fn observation(batch: &Batch, id: u16) -> &Observation {
         batch.stations[&id].observation.as_ref().unwrap()
     }
@@ -568,7 +716,7 @@ mod tests {
         let batch = parsed(&value, now).unwrap();
         let reading = observation(&batch, 185);
         assert_eq!(reading.observed_at, at("2026-09-29T17:29:00Z"));
-        assert!(reading.speed_m_s.abs() < f64::EPSILON);
+        assert!(reading.speed_m_s.unwrap().abs() < f64::EPSILON);
         assert_eq!(reading.direction_from_deg, None);
         assert_eq!(reading.direction_label, None);
     }
@@ -721,11 +869,11 @@ mod tests {
                         let tm = (Utc::now() + TimeDelta::hours(9))
                             .format("%Y%m%d%H%M")
                             .to_string();
-                        source(json!([
-                            item(185, "고산", &tm, "4", "북동"),
-                            item(990, "낙천", &tm, "2", "남")
-                        ]))
-                        .to_string()
+                        let mut row = item(185, "고산", &tm, "4", "북동");
+                        row["awsTmp"] = json!("21.5");
+                        row["awsReh"] = json!("75");
+                        row["awsPcpHr1"] = json!("0");
+                        source(json!([row, item(990, "낙천", &tm, "2", "남")])).to_string()
                     }
                 }
             }),
@@ -750,6 +898,10 @@ mod tests {
             assert_eq!(old.headers()[header::CACHE_CONTROL], "no-store");
             let old: Value = old.json().await.unwrap();
             assert_eq!(old["status"], "fresh");
+            assert_eq!(old["weather_status"], "fresh");
+            assert_eq!(old["temperature_c"], 21.5);
+            assert_eq!(old["relative_humidity_percent"], 75.0);
+            assert_eq!(old["precipitation_1h_mm"], 0.0);
             assert_eq!(old["station"]["distance_km"], 5.54);
             let batch = client
                 .get(format!("{api_url}/api/v1/jeju/wind/stations"))
@@ -761,6 +913,8 @@ mod tests {
             let batch: Value = batch.json().await.unwrap();
             assert_eq!(batch["station_count"], 2);
             assert_eq!(batch["stations"][0]["station"]["id"], 185);
+            assert_eq!(batch["stations"][0]["temperature_c"], old["temperature_c"]);
+            assert_eq!(batch["stations"][0]["observed_at"], old["observed_at"]);
             assert!(batch["stations"][0]["station"].get("distance_km").is_none());
         }
         assert_eq!(calls.load(Ordering::SeqCst), 1);
@@ -779,7 +933,11 @@ mod tests {
         let tm = (Utc::now() + TimeDelta::hours(9))
             .format("%Y%m%d%H%M")
             .to_string();
-        let mut items = vec![item(185, "고산", &tm, "3", "북동")];
+        let mut row = item(185, "고산", &tm, "3", "북동");
+        row["awsTmp"] = json!("21.5");
+        row["awsReh"] = json!("75");
+        row["awsPcpHr1"] = json!("0");
+        let mut items = vec![row.clone()];
         items.extend((200..242).map(|id| item(id, "제주", &tm, "2", "남")));
         *body.write().await = source(json!(items)).to_string();
         let upstream = Router::new().route(
@@ -831,18 +989,27 @@ mod tests {
         assert_eq!(initial_first["stations"][0]["status"], "fresh");
         assert_eq!(calls.load(Ordering::SeqCst), 1);
 
-        *body.write().await = source(json!([item(185, "고산", &tm, "7", "남")])).to_string();
+        row["awsWs10"] = json!("7");
+        row["awsWd10"] = json!("남");
+        row["awsTmp"] = json!("22");
+        *body.write().await = source(json!([row])).to_string();
         weather.poll().await;
         for socket in [&mut first, &mut second] {
             let update = next_ws(socket).await;
             assert_eq!(update["stations"][0]["speed_m_s"], 7.0);
             assert_eq!(update["stations"][0]["status"], "fresh");
+            assert_eq!(update["stations"][0]["weather_status"], "fresh");
+            assert_eq!(update["stations"][0]["temperature_c"], 22.0);
+            assert_eq!(update["stations"][0]["relative_humidity_percent"], 75.0);
+            assert_eq!(update["stations"][0]["precipitation_1h_mm"], 0.0);
         }
         *body.write().await = "{}".into();
         weather.poll().await;
         for socket in [&mut first, &mut second] {
             let failed = next_ws(socket).await;
             assert_eq!(failed["stations"][0]["status"], "stale");
+            assert_eq!(failed["stations"][0]["weather_status"], "stale");
+            assert_eq!(failed["stations"][0]["temperature_c"], 22.0);
             assert_eq!(failed["stations"][0]["speed_m_s"], 7.0);
             assert_eq!(failed["station_count"], 43);
             assert!(
