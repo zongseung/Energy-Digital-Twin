@@ -5,9 +5,9 @@
 # ///
 """Sinchang fields, paddies, grass, cadastral crop parcels and estimated field stone walls (밭담).
 
-uv run renderers/twin/groundcover.py --self-test   # no network, flat height_at, synthetic zones and parcels
+uv run renderers/twin/groundcover.py --self-test   # no network, synthetic zones and parcels
 uv run renderers/twin/groundcover.py --collect     # VWorld LP_PA_CBND_BUBUN over the AOI -> var/rendering/groundcover/parcels.json
-uv run renderers/twin/groundcover.py               # groundcover.json + preview.glb on var/rendering/local/scene.glb heights
+uv run renderers/twin/groundcover.py               # var/rendering/groundcover/groundcover.json (data only; the web viewer draws it)
 vworld_key is never printed or stored.
 """
 from __future__ import annotations
@@ -25,7 +25,6 @@ from urllib.request import urlopen
 
 import numpy as np
 import shapely
-import trimesh
 from rasterio.warp import transform as project_crs
 
 from build import sha
@@ -127,8 +126,7 @@ def load_parcels(cache: Path = CACHE, fetch=None) -> tuple[list, dict]:
                               "feature_count": len(data["features"]), "attribution": data["attribution"]}
 
 
-def add_groundcover(scene: trimesh.Scene, frame: dict, height_at, features: list | None = None,
-                    parcels: list | None = None, roads: list | None = None) -> dict:
+def add_groundcover(frame: dict, features: list | None = None, parcels: list | None = None, roads: list | None = None) -> dict:
     site = json.loads(SITE.read_text())
     features, sources = landcover() if features is None else (features, [])
     parcels, parcel_source = load_parcels() if parcels is None else (parcels, {"kind": "caller_supplied"})
@@ -219,7 +217,6 @@ def self_test() -> None:
     site = json.loads(SITE.read_text())
     frame = site["projection"]
     (e0, n0), aoi = frame["origin_easting_northing"], aoi_polygon(frame, AOI)
-    height_at = lambda x, z: np.full(np.shape(x), 10.0)  # flat test terrain
 
     def box(x0, z0, x1, z1) -> dict:  # scene-metre box as a lon/lat MultiPolygon
         lon, lat = project_crs(frame["horizontal_crs"], "EPSG:4326", np.array([x0, x1, x1, x0, x0]) + e0, n0 - np.array([z0, z0, z1, z1, z0]))
@@ -248,10 +245,9 @@ def self_test() -> None:
                parcel("P8", "8전", -1220, -1000, -1150, -960)]  # field lot 29% inside crop zones: walls, no parcel
     assert shapely.LineString([(cx - 50, cz), (cx + 50, cz)]).intersects(house)
     roads = [{"width": "6", "lanes": None, "class": "RDD000", "lines": [np.array([[-1500., -930.], [-1100., -930.]])]}]
-    scene = trimesh.Scene(base_frame="world")
-    block = add_groundcover(scene, frame, height_at, features, parcels, roads)
+    block = add_groundcover(frame, features, parcels, roads)
     json.dumps(block)
-    assert not scene.graph.nodes_geometry and block["seed"] == SEED == 20260930  # data only; plants are drawn by the web viewer
+    assert block["seed"] == SEED == 20260930  # data only; plants are drawn by the web viewer
 
     # Zones: classes mapped, AOI-clipped, buildings + 1 m removed, 0.1 m grid, open rings (outer first, then holes).
     polygons = [(z["class"], shapely.Polygon(z["rings"][0], z["rings"][1:])) for z in block["zones"]]
@@ -286,7 +282,7 @@ def self_test() -> None:
     # Cadastral layer unavailable: cell50_estimated rows, no parcels or walls, reason recorded.
     missing, source = load_parcels(Path("/nonexistent/parcels.json"), lambda: 1 / 0)
     assert missing == [] and "ZeroDivisionError" in source["reason"]
-    fallback = add_groundcover(trimesh.Scene(base_frame="world"), frame, height_at, features, missing, roads)
+    fallback = add_groundcover(frame, features, missing, roads)
     assert fallback["row_source"] == "cell50_estimated" and fallback["parcels"] == fallback["walls"] == [], fallback["row_source"]
     print(f"PASS groundcover {block['counts']}")
 
@@ -300,17 +296,14 @@ def main() -> None:
         return self_test()
     if args.collect:
         return collect()
-    from build_local import surface_height  # lazy: build_local imports this module
-    frame = json.loads((ROOT / "var/rendering/local/manifest.json").read_text())["coordinateFrame"]
-    height_at = surface_height(trimesh.load(ROOT / "var/rendering/local/scene.glb", force="scene"))
-    scene, start = trimesh.Scene(base_frame="world"), time.perf_counter()
-    block = add_groundcover(scene, frame, height_at)
+    frame = json.loads((ROOT / "var/rendering/grid/manifest.json").read_text())["coordinateFrame"]
+    start = time.perf_counter()
+    block = add_groundcover(frame)
     seconds = round(time.perf_counter() - start, 1)
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "preview.glb").write_bytes(trimesh.exchange.gltf.export_glb(scene, include_normals=True))
     text = json.dumps(block, ensure_ascii=False, separators=(",", ":"))
     (OUT / "groundcover.json").write_text(text + "\n")
-    print(json.dumps({"json_bytes": len(text.encode()), "glb_bytes": (OUT / "preview.glb").stat().st_size, "seconds": seconds,
+    print(json.dumps({"json_bytes": len(text.encode()), "seconds": seconds,
                       "row_source": block["row_source"], **block["counts"]}, ensure_ascii=False))
 
 
