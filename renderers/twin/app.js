@@ -7,7 +7,7 @@ import {shouldApply, kstDay} from '/twin/playback.mjs';
 
 const el = (id) => document.getElementById(id);
 const metricKeys = ['demand_mw', 'supply_capacity_mw', 'wind_mw', 'solar_mw', 'renewable_total_mw'];
-const layers = ['wind', 'transmission', 'substation', 'pv', 'terrain', 'buildings', 'sea', 'roads', 'vegetation'];
+const layers = ['wind', 'transmission', 'substation', 'pv', 'terrain', 'buildings', 'sea', 'roads', 'vegetation', 'groundcover'];
 const sceneControls = ['inspect', 'overview', 'wind-view', 'terrain-relief', 'terrain-view', 'pv-view', 'buildings-view', 'sea-view', 'rotate', 'zoom-in', 'zoom-out', 'rotor-demo'];
 let renderer, scene, camera, controls, selected, grid;
 let demoFrame = 0, previousTime = 0, socket, reconnectTimer, contextLost = false;
@@ -25,7 +25,7 @@ async function getJson(url) {
   return response.json();
 }
 function render() {
-  if (renderer && !contextLost && !document.hidden) { grid?.update(camera); renderer.render(scene, camera); }
+  if (renderer && !contextLost && !document.hidden) { grid?.update(camera, controls.target); renderer.render(scene, camera); }
 }
 function cameraAt(view, scale = 1) {
   controls.target.fromArray(view.target);
@@ -109,7 +109,7 @@ async function startScene() {
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); grid?.resize(w, h); render();
     };
     new ResizeObserver(resize).observe(el('viewport')); resize();
-    grid = await loadGrid();
+    grid = await loadGrid(render);
     el('buildings-count').textContent = ` · ${grid.data.buildings.count.toLocaleString('ko-KR')}동 + 랜드마크 ${grid.data.landmarks?.count || 0}곳`; el('buildings-count').hidden = false;
     populate();
     showWind();
@@ -127,7 +127,7 @@ async function startScene() {
       if (hit) { choose(hit.userData.facility, false); revealSelection(); }
     });
     for (const id of sceneControls) el(id).disabled = false;
-    for (const layer of layers) el(`layer-${layer}`).disabled = false;
+    for (const layer of layers) Object.assign(el(`layer-${layer}`), {disabled:!(layer in grid.visible), checked:!!grid.visible[layer]}); // groundcover absent: off and disabled
     el('map-status').hidden = true; document.body.dataset.ready = 'true'; cameraAt(grid.data.cameras.array);
   } catch (error) {
     console.error('Local scene failed', error); document.body.dataset.ready = 'false';
